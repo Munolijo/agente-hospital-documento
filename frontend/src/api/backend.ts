@@ -1,6 +1,8 @@
 // src/api/backend.ts
 
-const BASE_URL = "http://localhost:8000"; // ajusta si cambias host/puerto
+// Usamos variable de entorno en producción y localhost en desarrollo
+const BASE_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // ---------------------------------------------------------
 // Gestión de token (simple con localStorage)
@@ -33,6 +35,7 @@ async function apiFetch<T>(
     ...(options.headers || {}),
   };
 
+  // Solo ponemos Content-Type JSON si no es FormData
   if (!(options.body instanceof FormData)) {
     headers["Content-Type"] = headers["Content-Type"] || "application/json";
   }
