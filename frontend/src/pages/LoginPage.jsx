@@ -15,17 +15,25 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Llama a /auth/login vía backend.ts y guarda el token
-      await login(username, password);
+      console.log("SUBMIT LOGIN", username, password);
 
-      // Opcional: comprobamos que el token funciona llamando a /auth/me
+      const result = await login(username, password);
+      console.log("RESPUESTA LOGIN", result);
+
       const me = await getCurrentUser();
       console.log("Usuario autenticado:", me);
 
       navigate("/app");
     } catch (e) {
-      console.error(e);
-      setError(e.message || "Error de conexión o credenciales incorrectas");
+      console.error("ERROR EN LOGIN COMPLETO:", e);
+      // Estos logs nos dicen exactamente qué error es
+      console.error("NAME:", e && e.name);
+      console.error("MESSAGE:", e && e.message);
+      console.error("STACK:", e && e.stack);
+
+      setError(
+        (e && e.message) || "Error de conexión o credenciales incorrectas"
+      );
     } finally {
       setLoading(false);
     }
@@ -41,7 +49,7 @@ export default function LoginPage() {
         borderRadius: 8,
       }}
     >
-      <h1 style={{ marginBottom: 16 }}>Acceso al agente del hospital</h1>
+      <h1 style={{ marginBottom: 16 }}>PANTALLA LOGIN TEST</h1>
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: 12 }}>
           <label>

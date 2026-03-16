@@ -39,6 +39,7 @@ export default function ChatPage() {
     recognition.lang = "es-ES"; // interfaz en castellano
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
+    recognition.continuous = false; // una frase por pulsación
     return recognition;
   };
 
@@ -64,6 +65,20 @@ export default function ChatPage() {
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(texto);
+
+    // Intentamos elegir una voz que coincida con el lang
+    const voces = window.speechSynthesis.getVoices();
+    const vozSeleccionada =
+      voces.find((v) => v.lang === lang) ||
+      voces.find((v) => v.lang.startsWith(lang.split("-")[0])) ||
+      null;
+
+    if (vozSeleccionada) {
+      utterance.voice = vozSeleccionada;
+    } else {
+      console.warn("No se ha encontrado voz específica para", lang);
+    }
+
     utterance.lang = lang;
     utterance.rate = 1;
     utterance.pitch = 1;
@@ -271,6 +286,18 @@ export default function ChatPage() {
       return;
     }
 
+    // Si ya había uno en curso, lo paramos y limpiamos handlers
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
+        recognitionRef.current.stop();
+      } catch (e) {
+        console.warn("Error al detener reconocimiento anterior", e);
+      }
+    }
+
     recognitionRef.current = recognition;
     setIsListening(true);
 
@@ -300,7 +327,14 @@ export default function ChatPage() {
   const stopListening = () => {
     const recognition = recognitionRef.current;
     if (recognition) {
-      recognition.stop();
+      try {
+        recognition.onresult = null;
+        recognition.onerror = null;
+        recognition.onend = null;
+        recognition.stop();
+      } catch (e) {
+        console.warn("Error al detener reconocimiento", e);
+      }
     }
     setIsListening(false);
   };
