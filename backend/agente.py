@@ -131,3 +131,20 @@ DOCUMENTO DEL HOSPITAL:
 
     traduccion = llamar_agente(prompt)
     return traduccion.strip()
+
+
+def iniciar_conversacion(texto_original: str) -> dict:
+    """
+    Orquesta: detecta idioma, traduce al español y devuelve la estructura de la conversación.
+    """
+    id_conversacion = str(uuid4())
+    idioma_paciente = detectar_idioma_paciente(texto_original)
+    texto_traducido = traducir_paciente_a_espanol(texto_original, idioma_paciente)
+
+    return {
+        "id_conversacion": id_conversacion,
+        "rol": "paciente",
+        "idioma_paciente": idioma_paciente,
+        "texto_original": texto_original,
+        "texto_traducido": texto_traducido,
+    }
