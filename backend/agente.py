@@ -50,13 +50,15 @@ def detectar_idioma_paciente(texto_paciente: str) -> str:
 def traducir_paciente_a_espanol(texto_paciente: str, idioma_paciente: str) -> str:
     """
     Traduce el texto del paciente al español con enfoque clínico.
+    Si el texto es incoherente o ininteligible, responde solo con '(no se entiende bien)'.
     """
     prompt = (
-        "Eres un traductor profesional.\n"
-        "Traduce el siguiente texto del PACIENTE al ESPAÑOL, manteniendo el "
-        "significado y los matices importantes.\n"
-        "No añadas explicaciones, ni comentarios, ni notas; responde solo "
-        "con la traducción.\n\n"
+        "Eres un traductor profesional en un hospital.\n"
+        "Tomas frases habladas por un paciente y las traduces al ESPAÑOL.\n"
+        "Responde SIEMPRE solo con la traducción, sin explicaciones, "
+        "sin comentarios, sin notas ni advertencias.\n"
+        "Si el texto está mal dicho, es incoherente o no se entiende, "
+        "responde únicamente con: '(no se entiende bien)'.\n\n"
         f"Texto del paciente ({idioma_paciente}):\n{texto_paciente}\n"
     )
     traduccion = llamar_agente(prompt)
@@ -66,14 +68,17 @@ def traducir_paciente_a_espanol(texto_paciente: str, idioma_paciente: str) -> st
 def traducir_sanitario_a_paciente(texto_sanitario: str, idioma_paciente: str) -> str:
     """
     Traduce del español al idioma del paciente.
+    Si el texto es incoherente o no se entiende, responde solo con algo breve en el idioma del paciente.
     """
     prompt = (
-        "Eres un traductor profesional.\n"
-        "Traduce el siguiente texto del SANITARIO al idioma del PACIENTE, "
-        "manteniendo el significado y los matices importantes.\n"
-        "No añadas explicaciones, ni comentarios, ni notas; responde solo "
-        "con la traducción.\n\n"
-        f"Idioma del paciente: {idioma_paciente}\n\n"
+        "Eres un traductor profesional en un hospital.\n"
+        "Tomas frases habladas por personal sanitario en ESPAÑOL "
+        "y las traduces al idioma del PACIENTE.\n"
+        "Responde SIEMPRE solo con la traducción, sin explicaciones, "
+        "sin comentarios, sin notas ni advertencias.\n"
+        "Si el texto es incoherente o no se entiende, responde únicamente con una frase corta "
+        "en el idioma del paciente equivalente a '(no se entiende bien)'.\n\n"
+        f"Idioma del paciente (en español, por ejemplo 'inglés', 'francés'): {idioma_paciente}\n\n"
         f"Texto del sanitario (en ESPAÑOL):\n{texto_sanitario}\n"
     )
     traduccion = llamar_agente(prompt)
