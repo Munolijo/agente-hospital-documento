@@ -1,15 +1,22 @@
 # db.py
+import os
 from typing import Optional, Generator
 
 from sqlmodel import SQLModel, Field, create_engine, Session
 
-
+# En local, si no hay DATABASE_URL, usamos SQLite.
 sqlite_file_name = "database.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
 
-# Necesario para que SQLite funcione bien con FastAPI (hilos)
-connect_args = {"check_same_thread": False}
-engine = create_engine(sqlite_url, connect_args=connect_args, echo=False)
+DATABASE_URL = os.getenv("DATABASE_URL", sqlite_url)
+
+# Para SQLite necesitamos connect_args; para Postgres no.
+if DATABASE_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+else:
+    connect_args = {}
+
+engine = create_engine(DATABASE_URL, connect_args=connect_args, echo=False)
 
 
 class User(SQLModel, table=True):
