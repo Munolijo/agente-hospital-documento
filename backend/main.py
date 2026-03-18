@@ -19,10 +19,10 @@ import pytesseract
 from sqlmodel import Session, select
 import httpx  # <- NUEVO
 
-# IMPORTS LOCALES como paquete backend
-from .db import User as UserDB, create_db_and_tables, get_session
+# IMPORTS LOCALES como módulo
+from db import User as UserDB, create_db_and_tables, get_session
 
-from .agente import (
+from agente import (
     detectar_idioma_paciente,
     traducir_paciente_a_espanol,
     iniciar_conversacion,  # si no lo usas, puedes quitarlo
