@@ -52,9 +52,16 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# Orígenes permitidos (añade aquí también tu frontend en Render si lo tienes)
+origins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -77,6 +84,7 @@ conversaciones: Dict[str, str] = {}  # id_conversacion -> idioma_paciente
 class MensajeTexto(BaseModel):
     texto_original: str
 
+
 class RespuestaMensaje(BaseModel):
     id_conversacion: str
     rol: str
@@ -84,18 +92,22 @@ class RespuestaMensaje(BaseModel):
     texto_original: str
     texto_traducido: str
 
+
 class FinalizarRespuesta(BaseModel):
     id_conversacion: str
     estado: str
+
 
 class Token(BaseModel):
     access_token: str
     token_type: str
 
+
 class TokenData(BaseModel):
     username: str | None = None
     hospital_id: str | None = None
     role: str | None = None
+
 
 class User(BaseModel):
     id: int
@@ -104,11 +116,13 @@ class User(BaseModel):
     role: str
     activo: bool
 
+
 class UserCreate(BaseModel):
     username: str
     password: str
     hospital_id: str
     role: str
+
 
 class UserRead(BaseModel):
     id: int
@@ -124,12 +138,15 @@ class UserRead(BaseModel):
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
+
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
+
 
 def get_user_by_username(session: Session, username: str) -> Optional[UserDB]:
     statement = select(UserDB).where(UserDB.username == username)
     return session.exec(statement).first()
+
 
 def authenticate_user(
     session: Session, username: str, password: str
@@ -143,6 +160,7 @@ def authenticate_user(
         return None
     return user
 
+
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
     if expires_delta:
@@ -152,6 +170,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -215,6 +234,7 @@ async def login_for_access_token(
     )
     return Token(access_token=access_token, token_type="bearer")
 
+
 @app.get("/auth/me", response_model=UserRead)
 async def read_users_me(current_user: UserDB = Depends(get_current_user)):
     return UserRead(
@@ -261,6 +281,7 @@ def create_user(
         activo=user_db.activo,
     )
 
+
 @app.get("/users", response_model=list[UserRead])
 def list_users(
     session: Session = Depends(get_session),
@@ -277,6 +298,7 @@ def list_users(
         )
         for u in users
     ]
+
 
 @app.patch("/users/{user_id}/activo", response_model=UserRead)
 def set_user_active(
@@ -305,6 +327,7 @@ def set_user_active(
 # ----------------------------------------------------------------------
 
 CIMA_BASE_URL = "https://cima.aemps.es/cima/rest/medicamentos"
+
 
 def resolver_principio_activo_desde_cima(nombre_comercial: str) -> Optional[str]:
     params = {"nombre": nombre_comercial}
@@ -348,6 +371,7 @@ def resolver_principio_activo_desde_cima(nombre_comercial: str) -> Optional[str]
 
     return None
 
+
 def resolver_principio_activo(nombre_comercial: str) -> str:
     nombre_comercial = nombre_comercial.strip()
     if not nombre_comercial:
@@ -357,12 +381,15 @@ def resolver_principio_activo(nombre_comercial: str) -> str:
         return principio
     return nombre_comercial
 
+
 class MedicamentoEntrada(BaseModel):
     nombre_comercial: str
+
 
 class MedicamentoSalida(BaseModel):
     nombre_comercial: str
     principio_activo: str
+
 
 @app.post("/api/medicamentos/resolver", response_model=MedicamentoSalida)
 def resolver_medicamento(
@@ -404,6 +431,7 @@ def iniciar_conversacion_paciente_texto(
         texto_traducido=traduccion_es,
     )
 
+
 @app.post(
     "/api/conversaciones/{id_conversacion}/paciente/texto",
     response_model=RespuestaMensaje,
@@ -432,6 +460,7 @@ def turno_paciente_texto(
         texto_original=texto,
         texto_traducido=traduccion_es,
     )
+
 
 @app.post(
     "/api/conversaciones/{id_conversacion}/sanitario/texto",
@@ -462,6 +491,7 @@ def turno_sanitario_texto(
         texto_traducido=traduccion_paciente,
     )
 
+
 @app.post(
     "/api/conversaciones/{id_conversacion}/finalizar",
     response_model=FinalizarRespuesta,
@@ -484,6 +514,7 @@ perplexity_client = OpenAI(
     api_key=os.environ["PERPLEXITY_API_KEY"],
     base_url="https://api.perplexity.ai",
 )
+
 
 def llamar_agente_documentos(prompt: str) -> str:
     response = perplexity_client.chat.completions.create(
