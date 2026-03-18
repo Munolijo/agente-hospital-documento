@@ -303,10 +303,11 @@ export default function ChatPage() {
 
     let textoReconocido = "";
 
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      textoReconocido = transcript;
-    };
+recognition.onresult = (event) => {
+  const transcript = event.results[0][0].transcript;
+  console.log("Reconocido:", transcript);   // ← añade esta línea
+  textoReconocido = transcript;
+};
 
     recognition.onerror = (event) => {
       console.error("Speech recognition error", event);
