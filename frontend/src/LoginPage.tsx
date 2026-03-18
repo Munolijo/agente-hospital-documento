@@ -1,10 +1,5 @@
 import { useState } from "react";
-import { API_BASE_URL } from "./config";
-
-interface LoginResponse {
-  access_token: string;
-  token_type: string;
-}
+import { login } from "./api/backend";
 
 export function LoginPage(props: { onLogin: (token: string) => void }) {
   const [username, setUsername] = useState("");
@@ -18,24 +13,7 @@ export function LoginPage(props: { onLogin: (token: string) => void }) {
     setLoading(true);
 
     try {
-      const body = new URLSearchParams();
-      body.append("username", username);
-      body.append("password", password);
-
-      const res = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: body.toString(),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.detail ?? "Usuario o contraseña incorrectos.");
-      }
-
-      const data = (await res.json()) as LoginResponse;
+      const data = await login(username, password);
       props.onLogin(data.access_token);
     } catch (err: any) {
       setError(err.message ?? "Error inesperado al iniciar sesión.");
