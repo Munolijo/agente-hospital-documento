@@ -174,10 +174,26 @@ def traducir_sanitario_a_paciente(texto_sanitario: str, idioma_paciente: str) ->
     if not texto_sanitario:
         return ""
 
+    # DEBUG: ver qué idioma y código estamos usando
+    try:
+        codigo_destino = idioma_paciente_a_codigo(idioma_paciente)
+        print(
+            "DEBUG TRAD_SANITARIO ->",
+            "idioma_paciente:", repr(idioma_paciente),
+            "codigo_destino:", repr(codigo_destino),
+            "texto_sanitario:", repr(texto_sanitario),
+        )
+    except Exception as e:
+        print("DEBUG TRAD_SANITARIO ERROR OBTENIENDO CODIGO:", e)
+        # en caso de error raro, devolvemos el texto original
+        return texto_sanitario
+
     try:
         traduccion = traducir_con_traductor_clasico(texto_sanitario, idioma_paciente)
+        print("DEBUG TRAD_SANITARIO -> traduccion:", repr(traduccion))
         return traduccion
-    except Exception:
+    except Exception as e:
+        print("DEBUG TRAD_SANITARIO ERROR deep_translator:", e)
         # No usamos el modelo aquí para evitar charlas; devolvemos algo corto.
         return "No se ha podido traducir automáticamente este mensaje al idioma del paciente."
 
