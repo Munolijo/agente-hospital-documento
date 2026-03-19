@@ -151,14 +151,48 @@ def traducir_con_traductor_clasico(texto: str, idioma_paciente: str) -> str:
     """
     Traduce desde español al idioma del paciente usando deep_translator (Google).
     Si no reconoce el idioma o falla, lanza excepción.
+    Detecta el caso en que no se produce traducción (devuelve algo casi igual al original).
     """
     codigo_destino = idioma_paciente_a_codigo(idioma_paciente)
     if not codigo_destino:
         raise ValueError(f"No se reconoce el idioma del paciente: {idioma_paciente!r}")
 
+    texto_orig = (texto or "").strip()
     traductor = GoogleTranslator(source="es", target=codigo_destino)
-    resultado = traductor.translate(texto or "")
-    return (resultado or "").strip()
+    resultado = (traductor.translate(texto_orig) or "").strip()
+
+    # Heurística simple: si resultado es casi igual al original, lo consideramos "no traducido".
+    # Comparamos en minúsculas y sin tildes/puntuación básica.
+    def normalizar(s: str) -> str:
+        s = s.lower()
+        reemplazos = {
+            "á": "a", "é": "e", "í": "i", "ó": "o", "ú": "u",
+            "ü": "u", "ñ": "n",
+        }
+        for k, v in reemplazos.items():
+            s = s.replace(k, v)
+        # quitamos signos de puntuación básicos
+        for ch in [".", ",", ";", ":", "¿", "?", "¡", "!", "\"", "'"]:
+            s = s.replace(ch, "")
+        return s.strip()
+
+    norm_orig = normalizar(texto_orig)
+    norm_res = normalizar(resultado)
+
+    # Si son exactamente iguales o muy parecidos, lo tratamos como no traducido
+    if norm_orig == norm_res:
+        print(
+            "DEBUG DEEP_TRANSLATOR SIN TRADUCCION ->",
+            "texto_orig:", repr(texto_orig),
+            "resultado:", repr(resultado),
+            "idioma_paciente:", repr(idioma_paciente),
+            "codigo_destino:", repr(codigo_destino),
+        )
+        # De momento devolvemos tal cual; más adelante aquí podríamos
+        # reintentar con el modelo o devolver un mensaje corto.
+        return resultado
+
+    return resultado
 
 
 # ---------------------------------------------------------------
