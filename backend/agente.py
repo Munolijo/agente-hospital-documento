@@ -201,35 +201,36 @@ def traducir_con_traductor_clasico(texto: str, idioma_paciente: str) -> str:
 
 def traducir_sanitario_a_paciente(texto_sanitario: str, idioma_paciente: str) -> str:
     """
-    Traduce del español al idioma del paciente usando SOLO deep_translator.
-    Si falla, devuelve un mensaje de error controlado en español.
+    Traduce del español al idioma del paciente usando el modelo de Perplexity.
+    Si el texto es incoherente o no se entiende, devuelve algo muy breve en el idioma del paciente.
     """
     texto_sanitario = (texto_sanitario or "").strip()
     if not texto_sanitario:
         return ""
 
-    # DEBUG: ver qué idioma y código estamos usando
-    try:
-        codigo_destino = idioma_paciente_a_codigo(idioma_paciente)
-        print(
-            "DEBUG TRAD_SANITARIO ->",
-            "idioma_paciente:", repr(idioma_paciente),
-            "codigo_destino:", repr(codigo_destino),
-            "texto_sanitario:", repr(texto_sanitario),
-        )
-    except Exception as e:
-        print("DEBUG TRAD_SANITARIO ERROR OBTENIENDO CODIGO:", e)
-        # en caso de error raro, devolvemos el texto original
-        return texto_sanitario
+    prompt = (
+        "Eres un traductor profesional en un hospital.\n"
+        "Recibes frases habladas por personal SANITARIO en ESPAÑOL "
+        "y las traduces al idioma del PACIENTE.\n"
+        "TU ÚNICA SALIDA debe ser la traducción en el idioma del paciente, "
+        "sin explicaciones, sin comentarios, sin notas ni advertencias.\n"
+        "No menciones que eres un modelo de IA ni añadas frases de contexto.\n"
+        "Si el texto del sanitario es incoherente o no se entiende, responde únicamente con "
+        "una frase muy corta en el idioma del paciente equivalente a '(no se entiende bien)'.\n\n"
+        f"Idioma del paciente (en español, por ejemplo 'inglés', 'francés'): {idioma_paciente}\n\n"
+        f"Texto del sanitario (en ESPAÑOL):\n{texto_sanitario}\n"
+    )
 
     try:
-        traduccion = traducir_con_traductor_clasico(texto_sanitario, idioma_paciente)
-        print("DEBUG TRAD_SANITARIO -> traduccion:", repr(traduccion))
-        return traduccion
-    except Exception as e:
-        print("DEBUG TRAD_SANITARIO ERROR deep_translator:", e)
-        # No usamos el modelo aquí para evitar charlas; devolvemos algo corto.
-        return "No se ha podido traducir automáticamente este mensaje al idioma del paciente."
+        traduccion = llamar_agente(prompt)
+        traduccion = limpiar_citas(traduccion)
+        return traduccion.strip()
+    except Exception:
+        # Si el modelo falla, usamos el traductor clásico como respaldo
+        try:
+            return traducir_con_traductor_clasico(texto_sanitario, idioma_paciente)
+        except Exception:
+            return "No se ha podido traducir automáticamente este mensaje al idioma del paciente."
 
 
 # ---------------------------------------------------------------
