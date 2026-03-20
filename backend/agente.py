@@ -7,10 +7,12 @@ from deep_translator import GoogleTranslator  # traductor clásico
 
 API_KEY = os.environ["PERPLEXITY_API_KEY"]
 
+
 client = OpenAI(
     api_key=API_KEY,
     base_url="https://api.perplexity.ai",
 )
+
 
 # --- Helper para limpiar citas tipo [1][2] al final de la frase ---
 
@@ -71,7 +73,7 @@ def detectar_idioma_paciente(texto_paciente: str) -> str:
         "El siguiente texto lo ha dicho un paciente en un entorno hospitalario.\n"
         "Tu tarea ÚNICA es detectar en qué idioma está escrito el texto.\n"
         "Responde solo con el nombre del idioma en español, una sola palabra si es posible "
-        '(ejemplos: "inglés", "francés", "árabe", "ruso", "portugués", "chino").\n'
+        '(ejemplos: "inglés", "francés", "árabe", "ruso", "portugués", "chino").\n"
         "No añadas explicaciones, frases completas, disculpas ni comentarios.\n\n"
         f"Texto del paciente:\n{texto_paciente}\n"
     )
@@ -182,7 +184,7 @@ def traducir_con_traductor_clasico(texto: str, idioma_paciente: str) -> str:
     # Si son exactamente iguales o muy parecidos, lo tratamos como no traducido
     if norm_orig == norm_res:
         print(
-            "DEBUG DEEP_TRANSLATOR SIN TRADUCCION ->",
+            "DEBUG_DEEP_TRANSLATOR SIN TRADUCCION ->",
             "texto_orig:", repr(texto_orig),
             "resultado:", repr(resultado),
             "idioma_paciente:", repr(idioma_paciente),
@@ -208,6 +210,13 @@ def traducir_sanitario_a_paciente(texto_sanitario: str, idioma_paciente: str) ->
     if not texto_sanitario:
         return ""
 
+    # DEBUG: ver qué entra
+    print(
+        "DEBUG_SANITARIO_A_PACIENTE ->",
+        "idioma_paciente:", repr(idioma_paciente),
+        "texto_sanitario:", repr(texto_sanitario[:200]),
+    )
+
     prompt = (
         "Eres un traductor profesional en un hospital.\n"
         "Recibes frases habladas por personal SANITARIO en ESPAÑOL "
@@ -224,6 +233,13 @@ def traducir_sanitario_a_paciente(texto_sanitario: str, idioma_paciente: str) ->
     try:
         traduccion = llamar_agente(prompt)
         traduccion = limpiar_citas(traduccion)
+
+        # DEBUG: ver qué devuelve el modelo
+        print(
+            "DEBUG_SANITARIO_A_PACIENTE_RESPUESTA ->",
+            repr(traduccion[:200]),
+        )
+
         return traduccion.strip()
     except Exception:
         # Si el modelo falla, usamos el traductor clásico como respaldo
@@ -251,10 +267,8 @@ Eres un agente de traducción en un hospital.
 TU ÚNICA TAREA es traducir el texto, sin explicaciones adicionales,
 sin comentarios legales, sin valoraciones, sin resúmenes y sin añadir información nueva.
 
-
 Traduce el siguiente DOCUMENTO entregado por el PACIENTE al ESPAÑOL.
 Devuelve únicamente la traducción, sin ningún texto extra, sin frases introductorias.
-
 
 DOCUMENTO DEL PACIENTE:
 {texto_documento}
@@ -265,11 +279,9 @@ Eres un agente de traducción en un hospital.
 TU ÚNICA TAREA es traducir el texto, sin explicaciones adicionales,
 sin comentarios legales, sin valoraciones, sin resúmenes y sin añadir información nueva.
 
-
 El siguiente texto es un DOCUMENTO del HOSPITAL para el PACIENTE, escrito en ESPAÑOL.
 Traduce TODO el contenido al idioma del paciente: {idioma_destino}.
 Devuelve únicamente la traducción, sin ningún texto extra, sin frases introductorias.
-
 
 DOCUMENTO DEL HOSPITAL:
 {texto_documento}

@@ -770,8 +770,25 @@ async def transcribir_audio(
             status_code=400,
             detail="Para rol='sanitario' es obligatorio indicar una conversación válida.",
         )
+
     idioma_paciente = conversaciones[id_conversacion]
+
+    # DEBUG: ver qué entra al traductor del sanitario
+    print(
+        "DEBUG_ENDPOINT_SANITARIO_AUDIO ->",
+        "id_conversacion:", repr(id_conversacion),
+        "idioma_paciente:", repr(idioma_paciente),
+        "texto_transcrito:", repr(texto_transcrito[:200]),
+    )
+
     traduccion_paciente = traducir_sanitario_a_paciente(texto_transcrito, idioma_paciente)
+
+    # DEBUG: ver qué sale del traductor del sanitario
+    print(
+        "DEBUG_ENDPOINT_SANITARIO_AUDIO_RESPUESTA ->",
+        repr(traduccion_paciente[:200]),
+    )
+
     return RespuestaMensaje(
         id_conversacion=id_conversacion,
         rol="sanitario",
