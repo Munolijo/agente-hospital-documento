@@ -18,6 +18,7 @@ import pytesseract
 
 from sqlmodel import Session, select
 import httpx  # <- NUEVO
+import json   # <- AÑADIDO PARA DEBUG_RESPUESTA_AUDIO
 
 # IMPORTS LOCALES como módulo
 from db import User as UserDB, create_db_and_tables, get_session
@@ -720,7 +721,7 @@ async def transcribir_audio(
             id_conv = str(uuid.uuid4())
             conversaciones[id_conv] = idioma_paciente
 
-            return RespuestaMensaje(
+            respuesta = RespuestaMensaje(
                 id_conversacion=id_conv,
                 rol="paciente",
                 idioma_paciente=idioma_paciente,
@@ -732,13 +733,21 @@ async def transcribir_audio(
                 raise HTTPException(status_code=404, detail="Conversación no encontrada.")
             idioma_paciente = conversaciones[id_conversacion]
             traduccion_es = traducir_paciente_a_espanol(texto_transcrito, idioma_paciente)
-            return RespuestaMensaje(
+            respuesta = RespuestaMensaje(
                 id_conversacion=id_conversacion,
                 rol="paciente",
                 idioma_paciente=idioma_paciente,
                 texto_original=texto_transcrito,
                 texto_traducido=traduccion_es,
             )
+
+        # DEBUG_RESPUESTA_AUDIO
+        print(
+            "DEBUG_RESPUESTA_AUDIO ->",
+            json.dumps(respuesta.model_dump(), ensure_ascii=False),
+            flush=True,
+        )
+        return respuesta
 
     # rol == sanitario
     if not id_conversacion or id_conversacion not in conversaciones:
@@ -767,13 +776,21 @@ async def transcribir_audio(
         flush=True,
     )
 
-    return RespuestaMensaje(
+    respuesta = RespuestaMensaje(
         id_conversacion=id_conversacion,
         rol="sanitario",
         idioma_paciente=idioma_paciente,
         texto_original=texto_transcrito,
         texto_traducido=traduccion_paciente,
     )
+
+    # DEBUG_RESPUESTA_AUDIO (SANITARIO)
+    print(
+        "DEBUG_RESPUESTA_AUDIO ->",
+        json.dumps(respuesta.model_dump(), ensure_ascii=False),
+        flush=True,
+    )
+    return respuesta
 
 # ----------------------------------------------------------------------
 # ENDPOINT TEMPORAL: crear primer usuario sin auth (SOLO DESARROLLO)
