@@ -290,28 +290,45 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
 
         const audioBlob = new Blob(chunks, { type: "audio/webm" });
 
-        const formData = new FormData();
-        formData.append("archivo_audio", audioBlob, "grabacion.webm");
-        formData.append("rol", rolActivo);
-        if (idConversacion) {
-          formData.append("id_conversacion", idConversacion);
-        }
+const formData = new FormData();
+formData.append("archivo_audio", audioBlob, "grabacion.webm");
 
-        try {
-          console.log(
-            "DEBUG_FRONT_AUDIO -> rolActivo:",
-            rolActivo,
-            "idConversacion:",
-            idConversacion
-          );
+// Lógica de rol robusta:
+// - Si NO hay idConversacion => siempre paciente (primer turno)
+// - Si YA hay idConversacion y aún no hay ningún mensaje del sanitario => forzamos sanitario
+let rolAEnviar: RolConversacion = rolActivo;
 
-          const res = await fetch(`${API_BASE_URL}/api/audio/transcribir`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${props.token}`,
-            },
-            body: formData,
-          });
+if (!idConversacion) {
+  rolAEnviar = "paciente";
+} else {
+  const haySanitario = mensajes.some(m => m.rol === "sanitario");
+  if (!haySanitario) {
+    rolAEnviar = "sanitario";
+  }
+}
+
+console.log(
+  "DEBUG_FRONT_AUDIO -> rolActivo:",
+  rolActivo,
+  "rolAEnviar:",
+  rolAEnviar,
+  "idConversacion:",
+  idConversacion
+);
+
+formData.append("rol", rolAEnviar);
+if (idConversacion) {
+  formData.append("id_conversacion", idConversacion);
+}
+
+try {
+  const res = await fetch(`${API_BASE_URL}/api/audio/transcribir`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${props.token}`,
+    },
+    body: formData,
+  });
 
           if (!res.ok) {
             const data = await res.json().catch(() => null);
