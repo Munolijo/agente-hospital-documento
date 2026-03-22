@@ -19,8 +19,8 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
   const [textoEntrada, setTextoEntrada] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // Para documentos
-  const [archivo, setArchivo] = useState<File | null>(null);
+  // Para documentos (no usamos la variable, solo el setter para limpiar el warning)
+  const [, setArchivo] = useState<File | null>(null);
   const [subiendoDoc, setSubiendoDoc] = useState(false);
 
   // Estado para audio
@@ -52,7 +52,7 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
       return;
     }
     const utter = new SpeechSynthesisUtterance(texto);
-    utter.lang = lang; // fijamos idioma explícito[web:1423][web:1424]
+    utter.lang = lang;
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utter);
   };
@@ -256,108 +256,108 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
     alert("Función de foto/escaneo pendiente de implementar.");
   };
 
-const manejarMicrofono = async () => {
-  setError(null);
+  const manejarMicrofono = async () => {
+    setError(null);
 
-  try {
-    // Si ya estamos grabando, paramos y dejamos que onstop envíe el audio
-    if (grabando && mediaRecorder) {
-      mediaRecorder.stop();
-      setGrabando(false);
-      setEnviandoAudio(true);
-      return;
-    }
-
-    // Empezar a grabar
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const recorder = new MediaRecorder(stream);
-    const chunks: Blob[] = [];
-
-    recorder.ondataavailable = (event: BlobEvent) => {
-      if (event.data && event.data.size > 0) {
-        chunks.push(event.data);
-      }
-    };
-
-    recorder.onstop = async () => {
-      // Parar el micro físicamente
-      stream.getTracks().forEach(track => track.stop());
-
-      if (chunks.length === 0) {
-        setEnviandoAudio(false);
+    try {
+      // Si ya estamos grabando, paramos y dejamos que onstop envíe el audio
+      if (grabando && mediaRecorder) {
+        mediaRecorder.stop();
+        setGrabando(false);
+        setEnviandoAudio(true);
         return;
       }
 
-      const audioBlob = new Blob(chunks, { type: "audio/webm" });
+      // Empezar a grabar
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
 
-      const formData = new FormData();
-      formData.append("archivo_audio", audioBlob, "grabacion.webm");
-      formData.append("rol", rolActivo);
-      if (idConversacion) {
-        formData.append("id_conversacion", idConversacion);
-      }
+      recorder.ondataavailable = (event: BlobEvent) => {
+        if (event.data && event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
 
-      try {
-        console.log(
-          "DEBUG_FRONT_AUDIO -> rolActivo:",
-          rolActivo,
-          "idConversacion:",
-          idConversacion
-        );
+      recorder.onstop = async () => {
+        // Parar el micro físicamente
+        stream.getTracks().forEach(track => track.stop());
 
-        const res = await fetch(`${API_BASE_URL}/api/audio/transcribir`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${props.token}`,
-          },
-          body: formData,
-        });
-
-        if (!res.ok) {
-          const data = await res.json().catch(() => null);
-          throw new Error(data?.detail ?? "Error transcribiendo audio");
+        if (chunks.length === 0) {
+          setEnviandoAudio(false);
+          return;
         }
 
-        const data = await res.json();
+        const audioBlob = new Blob(chunks, { type: "audio/webm" });
 
-        if (!idConversacion && data.id_conversacion) {
-          setIdConversacion(data.id_conversacion);
+        const formData = new FormData();
+        formData.append("archivo_audio", audioBlob, "grabacion.webm");
+        formData.append("rol", rolActivo);
+        if (idConversacion) {
+          formData.append("id_conversacion", idConversacion);
         }
-        if (!idiomaPaciente && data.idioma_paciente) {
-          setIdiomaPaciente(data.idioma_paciente);
-        }
 
-        const nuevo: MensajeUI = {
-          id: crypto.randomUUID(),
-          rol: rolActivo,
-          textoOriginal: data.texto_original,
-          textoTraducido: data.texto_traducido,
-        };
-        setMensajes(prev => [...prev, nuevo]);
+        try {
+          console.log(
+            "DEBUG_FRONT_AUDIO -> rolActivo:",
+            rolActivo,
+            "idConversacion:",
+            idConversacion
+          );
 
-        if (data.texto_traducido) {
-          if (rolActivo === "paciente") {
-            hablarParaSanitario(data.texto_traducido);
-          } else {
-            hablarParaPaciente(data.texto_traducido);
+          const res = await fetch(`${API_BASE_URL}/api/audio/transcribir`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${props.token}`,
+            },
+            body: formData,
+          });
+
+          if (!res.ok) {
+            const data = await res.json().catch(() => null);
+            throw new Error(data?.detail ?? "Error transcribiendo audio");
           }
-        }
-      } catch (err: any) {
-        setError(err.message ?? "Error al enviar audio");
-      } finally {
-        setEnviandoAudio(false);
-      }
-    };
 
-    recorder.start();
-    setMediaRecorder(recorder);
-    setGrabando(true);
-  } catch (err: any) {
-    setError("No se ha podido acceder al micrófono.");
-    setGrabando(false);
-    setEnviandoAudio(false);
-  }
-};
+          const data = await res.json();
+
+          if (!idConversacion && data.id_conversacion) {
+            setIdConversacion(data.id_conversacion);
+          }
+          if (!idiomaPaciente && data.idioma_paciente) {
+            setIdiomaPaciente(data.idioma_paciente);
+          }
+
+          const nuevo: MensajeUI = {
+            id: crypto.randomUUID(),
+            rol: rolActivo,
+            textoOriginal: data.texto_original,
+            textoTraducido: data.texto_traducido,
+          };
+          setMensajes(prev => [...prev, nuevo]);
+
+          if (data.texto_traducido) {
+            if (rolActivo === "paciente") {
+              hablarParaSanitario(data.texto_traducido);
+            } else {
+              hablarParaPaciente(data.texto_traducido);
+            }
+          }
+        } catch (err: any) {
+          setError(err.message ?? "Error al enviar audio");
+        } finally {
+          setEnviandoAudio(false);
+        }
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setGrabando(true);
+    } catch (err: any) {
+      setError("No se ha podido acceder al micrófono.");
+      setGrabando(false);
+      setEnviandoAudio(false);
+    }
+  };
 
   const puedeTerminar = idConversacion !== null;
 
@@ -561,7 +561,11 @@ const manejarMicrofono = async () => {
             flex: 1,
             height: alturaBoton,
             whiteSpace: "nowrap",
-            backgroundColor: grabando ? "#ffcccc" : enviandoAudio ? "#ffe0b2" : undefined,
+            backgroundColor: grabando
+              ? "#ffcccc"
+              : enviandoAudio
+              ? "#ffe0b2"
+              : undefined,
           }}
         >
           {etiquetaMicro}
