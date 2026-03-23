@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Optional
@@ -659,6 +659,7 @@ async def traducir_documento_endpoint(
 
 @app.post("/api/audio/transcribir", response_model=RespuestaMensaje)
 async def transcribir_audio(
+    request: Request,
     archivo_audio: UploadFile = File(...),
     rol: str = "paciente",
     id_conversacion: Optional[str] = None,
@@ -667,6 +668,18 @@ async def transcribir_audio(
     """
     Recibe audio, lo transcribe con Whisper (OpenAI) y reutiliza la lógica de conversación.
     """
+
+    # DEBUG: ver todo lo que llega en el form-data
+    try:
+        form = await request.form()
+        print(
+            "DEBUG_REQUEST_FORM ->",
+            {k: ("<UploadFile>" if hasattr(v, "filename") else v) for k, v in form.items()},
+            flush=True,
+        )
+    except Exception as e:
+        print("DEBUG_REQUEST_FORM_ERROR ->", repr(e), flush=True)
+
     if rol not in ["paciente", "sanitario"]:
         raise HTTPException(status_code=400, detail="Rol inválido.")
 
