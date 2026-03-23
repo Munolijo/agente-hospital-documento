@@ -657,11 +657,12 @@ async def traducir_documento_endpoint(
 # ENDPOINT AUDIO: /api/audio/transcribir (Whisper)
 # ----------------------------------------------------------------------
 
+
 @app.post("/api/audio/transcribir", response_model=RespuestaMensaje)
 async def transcribir_audio(
     request: Request,
     archivo_audio: UploadFile = File(...),
-    rol: str = "paciente",
+    rol: Optional[str] = None,
     id_conversacion: Optional[str] = None,
     current_user: UserDB = Depends(get_current_user),
 ):
@@ -679,8 +680,20 @@ async def transcribir_audio(
         )
     except Exception as e:
         print("DEBUG_REQUEST_FORM_ERROR ->", repr(e), flush=True)
+        form = None
 
-    if rol not in ["paciente", "sanitario"]:
+    # Forzamos a usar SIEMPRE el rol que venga en el form-data
+    raw_rol = None
+    raw_id_conv = None
+    if form is not None:
+        raw_rol = form.get("rol")
+        raw_id_conv = form.get("id_conversacion")
+
+    rol_efectivo = (raw_rol or "").strip().lower()
+    if raw_id_conv:
+        id_conversacion = str(raw_id_conv)
+
+    if rol_efectivo not in ["paciente", "sanitario"]:
         raise HTTPException(status_code=400, detail="Rol inválido.")
 
     # Leemos el contenido del archivo en memoria
@@ -690,7 +703,6 @@ async def transcribir_audio(
         raise HTTPException(status_code=400, detail="El archivo de audio está vacío.")
 
     # Guardamos en un archivo temporal para pasarlo a la API de OpenAI
-    # (la librería espera un archivo tipo file-like)
     import tempfile
 
     try:
@@ -727,7 +739,9 @@ async def transcribir_audio(
         )
 
     # A partir de aquí, reutilizamos la lógica de texto
-    if rol == "paciente":
+
+    # Turno PACIENTE (usa rol_efectivo)
+    if rol_efectivo == "paciente":
         if not id_conversacion:
             idioma_paciente = detectar_idioma_paciente(texto_transcrito)
             traduccion_es = traducir_paciente_a_espanol(texto_transcrito, idioma_paciente)
@@ -754,7 +768,6 @@ async def transcribir_audio(
                 texto_traducido=traduccion_es,
             )
 
-        # DEBUG_RESPUESTA_AUDIO
         print(
             "DEBUG_RESPUESTA_AUDIO ->",
             json.dumps(respuesta.model_dump(), ensure_ascii=False),
@@ -762,48 +775,48 @@ async def transcribir_audio(
         )
         return respuesta
 
-    # rol == sanitario
-    if not id_conversacion or id_conversacion not in conversaciones:
-        raise HTTPException(
-            status_code=400,
-            detail="Para rol='sanitario' es obligatorio indicar una conversación válida.",
+    # Turno SANITARIO
+    if rol_efectivo == "sanitario":
+        if not id_conversacion or id_conversacion not in conversaciones:
+            raise HTTPException(
+                status_code=400,
+                detail="Para rol='sanitario' es obligatorio indicar una conversación válida.",
+            )
+
+        idioma_paciente = conversaciones[id_conversacion]
+
+        # DEBUG: ver qué entra al traductor del sanitario
+        print(
+            "DEBUG_ENDPOINT_SANITARIO_AUDIO ->",
+            "id_conversacion:", repr(id_conversacion),
+            "idioma_paciente:", repr(idioma_paciente),
+            "texto_transcrito:", repr(texto_transcrito[:200]),
+            flush=True,
         )
 
-    idioma_paciente = conversaciones[id_conversacion]
+        traduccion_paciente = traducir_sanitario_a_paciente(texto_transcrito, idioma_paciente)
 
-    # DEBUG: ver qué entra al traductor del sanitario
-    print(
-        "DEBUG_ENDPOINT_SANITARIO_AUDIO ->",
-        "id_conversacion:", repr(id_conversacion),
-        "idioma_paciente:", repr(idioma_paciente),
-        "texto_transcrito:", repr(texto_transcrito[:200]),
-        flush=True,
-    )
+        # DEBUG: ver qué sale del traductor del sanitario
+        print(
+            "DEBUG_ENDPOINT_SANITARIO_AUDIO_RESPUESTA ->",
+            repr(traduccion_paciente[:200]),
+            flush=True,
+        )
 
-    traduccion_paciente = traducir_sanitario_a_paciente(texto_transcrito, idioma_paciente)
+        respuesta = RespuestaMensaje(
+            id_conversacion=id_conversacion,
+            rol="sanitario",
+            idioma_paciente=idioma_paciente,
+            texto_original=texto_transcrito,
+            texto_traducido=traduccion_paciente,
+        )
 
-    # DEBUG: ver qué sale del traductor del sanitario
-    print(
-        "DEBUG_ENDPOINT_SANITARIO_AUDIO_RESPUESTA ->",
-        repr(traduccion_paciente[:200]),
-        flush=True,
-    )
-
-    respuesta = RespuestaMensaje(
-        id_conversacion=id_conversacion,
-        rol="sanitario",
-        idioma_paciente=idioma_paciente,
-        texto_original=texto_transcrito,
-        texto_traducido=traduccion_paciente,
-    )
-
-    # DEBUG_RESPUESTA_AUDIO (SANITARIO)
-    print(
-        "DEBUG_RESPUESTA_AUDIO ->",
-        json.dumps(respuesta.model_dump(), ensure_ascii=False),
-        flush=True,
-    )
-    return respuesta
+        print(
+            "DEBUG_RESPUESTA_AUDIO ->",
+            json.dumps(respuesta.model_dump(), ensure_ascii=False),
+            flush=True,
+        )
+        return respuesta
 
 # ----------------------------------------------------------------------
 # ENDPOINT TEMPORAL: crear primer usuario sin auth (SOLO DESARROLLO)
