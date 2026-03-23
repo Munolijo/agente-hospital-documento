@@ -19,6 +19,8 @@ import pytesseract
 from sqlmodel import Session, select
 import httpx  # <- NUEVO
 import json   # <- AÑADIDO PARA DEBUG_RESPUESTA_AUDIO
+import base64
+import requests
 
 # IMPORTS LOCALES como módulo
 from db import User as UserDB, create_db_and_tables, get_session
@@ -42,6 +44,13 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 480
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
+
+# ----------------------------------------------------------------------
+# CONFIGURACIÓN Azure Speech (TTS)
+# ----------------------------------------------------------------------
+
+AZURE_SPEECH_KEY = os.environ.get("AZURE_SPEECH_KEY")
+AZURE_SPEECH_REGION = os.environ.get("AZURE_SPEECH_REGION")
 
 # ----------------------------------------------------------------------
 # CONFIGURACIÓN FASTAPI
@@ -654,9 +663,104 @@ async def traducir_documento_endpoint(
     }
 
 # ----------------------------------------------------------------------
-# ENDPOINT AUDIO: /api/audio/transcribir (Whisper)
+# ENDPOINT TTS externo (Azure Speech)
 # ----------------------------------------------------------------------
 
+AZURE_VOICES = {
+    "inglés": "en-US-AvaMultilingualNeural",
+    "árabe": "ar-EG-SalmaNeural",
+    "chino": "zh-CN-XiaoxiaoNeural",
+    "mandarín": "zh-CN-XiaoxiaoNeural",
+    "francés": "fr-FR-DeniseNeural",
+    "alemán": "de-DE-KatjaNeural",
+    "portugués": "pt-PT-RaquelNeural",
+    "italiano": "it-IT-ElsaNeural",
+    "rumano": "ro-RO-AlinaNeural",
+    "farsi": "fa-IR-DilaraNeural",
+    "persa": "fa-IR-DilaraNeural",
+}
+
+def _seleccionar_voz_azure(idioma_paciente: str | None) -> str:
+    if not idioma_paciente:
+        return "en-US-AvaMultilingualNeural"
+    i = idioma_paciente.lower()
+    for clave, voz in AZURE_VOICES.items():
+        if clave in i:
+            return voz
+    return "en-US-AvaMultilingualNeural"
+
+class TtsRequest(BaseModel):
+    texto: str
+    idioma_paciente: Optional[str] = None
+
+@app.post("/api/tts")
+def generar_tts(
+    payload: TtsRequest,
+    current_user: UserDB = Depends(get_current_user),
+):
+    if not AZURE_SPEECH_KEY or not AZURE_SPEECH_REGION:
+        raise HTTPException(
+            status_code=500,
+            detail="TTS no configurado (faltan AZURE_SPEECH_KEY / AZURE_SPEECH_REGION).",
+        )
+
+    texto = (payload.texto or "").strip()
+    if not texto:
+        raise HTTPException(status_code=400, detail="Texto vacío.")
+
+    voz = _seleccionar_voz_azure(payload.idioma_paciente)
+
+    token_url = f"https://{AZURE_SPEECH_REGION}.api.cognitive.microsoft.com/sts/v1.0/issueToken"
+    tts_url = f"https://{AZURE_SPEECH_REGION}.tts.speech.microsoft.com/cognitiveservices/v1"
+
+    try:
+        token_res = requests.post(
+            token_url,
+            headers={"Ocp-Apim-Subscription-Key": AZURE_SPEECH_KEY},
+            timeout=5,
+        )
+        token_res.raise_for_status()
+        access_token = token_res.text
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error obteniendo token TTS: {e}")
+
+    ssml = f"""
+<speak version="1.0" xml:lang="en-US">
+  <voice name="{voz}">
+    {texto}
+  </voice>
+</speak>
+""".strip()
+
+    try:
+        tts_res = requests.post(
+            tts_url,
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/ssml+xml",
+                "X-Microsoft-OutputFormat": "audio-16khz-32kbitrate-mono-mp3",
+                "User-Agent": "agente-hospital-backend",
+            },
+            data=ssml.encode("utf-8"),
+            timeout=15,
+        )
+        tts_res.raise_for_status()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generando audio TTS: {e}")
+
+    audio_bytes = tts_res.content
+    if not audio_bytes:
+        raise HTTPException(status_code=500, detail="TTS ha devuelto audio vacío.")
+
+    audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
+    return {
+        "voice": voz,
+        "audio_base64": audio_b64,
+    }
+
+# ----------------------------------------------------------------------
+# ENDPOINT AUDIO: /api/audio/transcribir (Whisper)
+# ----------------------------------------------------------------------
 
 @app.post("/api/audio/transcribir", response_model=RespuestaMensaje)
 async def transcribir_audio(
@@ -682,7 +786,6 @@ async def transcribir_audio(
         print("DEBUG_REQUEST_FORM_ERROR ->", repr(e), flush=True)
         form = None
 
-    # Forzamos a usar SIEMPRE el rol que venga en el form-data
     raw_rol = None
     raw_id_conv = None
     if form is not None:
@@ -696,13 +799,10 @@ async def transcribir_audio(
     if rol_efectivo not in ["paciente", "sanitario"]:
         raise HTTPException(status_code=400, detail="Rol inválido.")
 
-    # Leemos el contenido del archivo en memoria
     audio_bytes = await archivo_audio.read()
-
     if not audio_bytes:
         raise HTTPException(status_code=400, detail="El archivo de audio está vacío.")
 
-    # Guardamos en un archivo temporal para pasarlo a la API de OpenAI
     import tempfile
 
     try:
@@ -718,7 +818,7 @@ async def transcribir_audio(
                 response_format="text",
             )
 
-        texto_transcrito = transcripcion  # ya es un string en response_format="text"
+        texto_transcrito = transcripcion
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -738,9 +838,7 @@ async def transcribir_audio(
             detail="No se ha obtenido texto de la transcripción.",
         )
 
-    # A partir de aquí, reutilizamos la lógica de texto
-
-    # Turno PACIENTE (usa rol_efectivo)
+    # Turno PACIENTE
     if rol_efectivo == "paciente":
         if not id_conversacion:
             idioma_paciente = detectar_idioma_paciente(texto_transcrito)
@@ -785,7 +883,6 @@ async def transcribir_audio(
 
         idioma_paciente = conversaciones[id_conversacion]
 
-        # DEBUG: ver qué entra al traductor del sanitario
         print(
             "DEBUG_ENDPOINT_SANITARIO_AUDIO ->",
             "id_conversacion:", repr(id_conversacion),
@@ -796,7 +893,6 @@ async def transcribir_audio(
 
         traduccion_paciente = traducir_sanitario_a_paciente(texto_transcrito, idioma_paciente)
 
-        # DEBUG: ver qué sale del traductor del sanitario
         print(
             "DEBUG_ENDPOINT_SANITARIO_AUDIO_RESPUESTA ->",
             repr(traduccion_paciente[:200]),
