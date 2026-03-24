@@ -204,8 +204,9 @@ def traducir_con_traductor_clasico(texto: str, idioma_paciente: str) -> str:
 
 def traducir_sanitario_a_paciente(texto_sanitario: str, idioma_paciente: str) -> str:
     """
-    Traduce del español al idioma del paciente usando deep_translator.
-    Versión entrega: no usa el modelo, para máxima estabilidad.
+    Traduce del español al idioma del paciente.
+    1) Intenta deep_translator (Google).
+    2) Si falla, hace fallback al modelo de Perplexity.
     """
     texto_sanitario = (texto_sanitario or "").strip()
     if not texto_sanitario:
@@ -219,19 +220,54 @@ def traducir_sanitario_a_paciente(texto_sanitario: str, idioma_paciente: str) ->
         flush=True,
     )
 
+    # 1) Intento con traductor clásico
     try:
         resultado = traducir_con_traductor_clasico(texto_sanitario, idioma_paciente)
-    except Exception:
-        return "No se ha podido traducir automáticamente este mensaje al idioma del paciente."
+        print(
+            "DEBUG_SANITARIO_A_PACIENTE_RESPUESTA ->",
+            repr(resultado[:200]),
+            flush=True,
+        )
+        return resultado.strip()
+    except Exception as e:
+        print(
+            "DEBUG_SANITARIO_A_PACIENTE_ERROR_DEEP ->",
+            repr(e),
+            "idioma_paciente:", repr(idioma_paciente),
+            flush=True,
+        )
 
-    # DEBUG: ver qué devuelve deep_translator
-    print(
-        "DEBUG_SANITARIO_A_PACIENTE_RESPUESTA ->",
-        repr(resultado[:200]),
-        flush=True,
+    # 2) Fallback al modelo de Perplexity
+    prompt = (
+        "Eres un traductor profesional en un hospital.\n"
+        "Recibes frases habladas por el PERSONAL SANITARIO en ESPAÑOL\n"
+        "y debes traducirlas al idioma del PACIENTE.\n"
+        "TU ÚNICA SALIDA debe ser la traducción en el idioma del paciente "
+        "sin explicaciones, sin comentarios, sin notas y sin advertencias.\n"
+        "No menciones que eres un modelo de IA, no comentes el contexto ni tus limitaciones.\n"
+        "Si el texto está mal dicho, incoherente o no se entiende, "
+        "responde únicamente con exactamente: '(no se entiende bien)'.\n\n"
+        f"Idioma del paciente: {idioma_paciente}\n"
+        f"Texto del sanitario en español:\n{texto_sanitario}\n"
     )
 
-    return resultado.strip()
+    try:
+        resultado_modelo = llamar_agente(prompt)
+        resultado_modelo = limpiar_citas(resultado_modelo).strip()
+        print(
+            "DEBUG_SANITARIO_A_PACIENTE_FALLBACK_MODEL ->",
+            repr(resultado_modelo[:200]),
+            flush=True,
+        )
+        return resultado_modelo
+    except Exception as e:
+        print(
+            "DEBUG_SANITARIO_A_PACIENTE_ERROR_MODEL ->",
+            repr(e),
+            "idioma_paciente:", repr(idioma_paciente),
+            flush=True,
+        )
+        return "No se ha podido traducir automáticamente este mensaje al idioma del paciente."
 
 
 # ---------------------------------------------------------------
