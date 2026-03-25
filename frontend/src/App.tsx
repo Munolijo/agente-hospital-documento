@@ -42,7 +42,9 @@ async function reproducirTtsExterno(
       throw new Error("Respuesta TTS sin audio_base64");
     }
 
-    const audioBytes = Uint8Array.from(atob(audioB64), c => c.charCodeAt(0));
+    const audioBytes = Uint8Array.from(atob(audioB64), (c) =>
+      c.charCodeAt(0)
+    );
     const blob = new Blob([audioBytes], { type: "audio/mpeg" });
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
@@ -61,14 +63,15 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
   const [textoEntrada, setTextoEntrada] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // Para documentos
+  // Para documentos / fotos
   const [, setArchivo] = useState<File | null>(null);
   const [subiendoDoc, setSubiendoDoc] = useState(false);
 
   // Estado para audio
   const [grabando, setGrabando] = useState(false);
   const [enviandoAudio, setEnviandoAudio] = useState(false);
-  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [mediaRecorder, setMediaRecorder] =
+    useState<MediaRecorder | null>(null);
 
   // Voces TTS (Web Speech)
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -78,7 +81,9 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
 
   useEffect(() => {
     if (!("speechSynthesis" in window)) {
-      setTtsAviso("Este navegador no soporta lectura en voz (Web Speech API).");
+      setTtsAviso(
+        "Este navegador no soporta lectura en voz (Web Speech API)."
+      );
       return;
     }
 
@@ -96,18 +101,20 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
     };
   }, []);
 
-  const seleccionarVozPorIdioma = (langObjetivo: string): SpeechSynthesisVoice | null => {
+  const seleccionarVozPorIdioma = (
+    langObjetivo: string
+  ): SpeechSynthesisVoice | null => {
     if (!voices.length) return null;
 
     const lowerTarget = langObjetivo.toLowerCase();
 
     // 1. Coincidencia exacta de lang (ej: "ar-SA")
-    let voz = voices.find(v => v.lang.toLowerCase() === lowerTarget);
+    let voz = voices.find((v) => v.lang.toLowerCase() === lowerTarget);
     if (voz) return voz;
 
     // 2. Coincidencia por prefijo (ej: "ar-" o "ar")
     const prefix = lowerTarget.split("-")[0];
-    voz = voices.find(v => v.lang.toLowerCase().startsWith(prefix));
+    voz = voices.find((v) => v.lang.toLowerCase().startsWith(prefix));
     if (voz) return voz;
 
     // 3. Sin coincidencia: devolvemos null y que el código superior decida
@@ -219,7 +226,7 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
 
       const res = await fetch(url, {
         method,
-               headers: {
+        headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${props.token}`,
         },
@@ -245,7 +252,7 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
         textoTraducido: data.texto_traducido,
       };
 
-      setMensajes(prev => [...prev, nuevo]);
+      setMensajes((prev) => [...prev, nuevo]);
       setTextoEntrada("");
 
       // REGLA DE VOZ:
@@ -273,15 +280,15 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
     }
     setError(null);
     try {
-await fetch(
-  `${API_BASE_URL}/api/conversaciones/${idConversacion}/finalizar`,
-  {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${props.token}`,
-    },
-  }
-);
+      await fetch(
+        `${API_BASE_URL}/api/conversaciones/${idConversacion}/finalizar`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${props.token}`,
+          },
+        }
+      );
       // aunque falle, reseteamos UI
       setIdConversacion(null);
       setMensajes([]);
@@ -299,7 +306,9 @@ await fetch(
     document.getElementById("input-doc")?.click();
   };
 
-  const manejarCambioArchivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const manejarCambioArchivo = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const f = e.target.files?.[0] ?? null;
     setArchivo(f);
     if (!f) return;
@@ -349,7 +358,7 @@ await fetch(
         textoOriginal: data.texto_origen ?? "(Documento)",
         textoTraducido: data.texto_traducido ?? "",
       };
-      setMensajes(prev => [...prev, nuevo]);
+      setMensajes((prev) => [...prev, nuevo]);
 
       if (data.texto_traducido) {
         if (rolActivo === "paciente") {
@@ -367,7 +376,12 @@ await fetch(
   };
 
   const manejarFoto = () => {
-    alert("Función de foto/escaneo pendiente de implementar.");
+    const input = document.getElementById("input-foto") as
+      | HTMLInputElement
+      | null;
+    if (input) {
+      input.click();
+    }
   };
 
   const manejarMicrofono = async () => {
@@ -395,7 +409,7 @@ await fetch(
 
       recorder.onstop = async () => {
         // Parar el micro físicamente
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach((track) => track.stop());
 
         if (chunks.length === 0) {
           setEnviandoAudio(false);
@@ -415,7 +429,7 @@ await fetch(
         if (!idConversacion) {
           rolAEnviar = "paciente";
         } else {
-          const haySanitario = mensajes.some(m => m.rol === "sanitario");
+          const haySanitario = mensajes.some((m) => m.rol === "sanitario");
           if (!haySanitario) {
             rolAEnviar = "sanitario";
           }
@@ -464,7 +478,7 @@ await fetch(
             textoOriginal: data.texto_original,
             textoTraducido: data.texto_traducido,
           };
-          setMensajes(prev => [...prev, nuevo]);
+          setMensajes((prev) => [...prev, nuevo]);
 
           if (data.texto_traducido) {
             if (rolAEnviar === "paciente") {
@@ -495,11 +509,8 @@ await fetch(
   // altura estándar para todos los botones (arriba y abajo)
   const alturaBoton = 30;
 
-  const etiquetaMicro = grabando
-    ? "Grabando..."
-    : enviandoAudio
-    ? "Procesando..."
-    : "Mic/Grab";
+  const etiquetaMicro =
+    grabando ? "Grabando..." : enviandoAudio ? "Procesando..." : "Mic/Grab";
 
   return (
     <div
@@ -525,7 +536,7 @@ await fetch(
       >
         <select
           value={rolActivo}
-          onChange={e => setRolActivo(e.target.value as RolConversacion)}
+          onChange={(e) => setRolActivo(e.target.value as RolConversacion)}
           style={{ flex: 1, height: alturaBoton }}
         >
           <option value="paciente">Paciente</option>
@@ -537,7 +548,7 @@ await fetch(
             onClick={terminarConversacion}
             style={{ flex: 1, height: alturaBoton }}
           >
-            Terminar conversación
+            Terminar
           </button>
         )}
 
@@ -561,9 +572,7 @@ await fetch(
       )}
 
       {ttsAviso && (
-        <div style={{ color: "#b36b00", fontSize: 13 }}>
-          {ttsAviso}
-        </div>
+        <div style={{ color: "#b36b00", fontSize: 13 }}>{ttsAviso}</div>
       )}
 
       {/* Cuadrado grande de conversación */}
@@ -583,7 +592,7 @@ await fetch(
             Aún no hay mensajes en esta conversación.
           </div>
         )}
-        {mensajes.map(m => (
+        {mensajes.map((m) => (
           <div
             key={m.id}
             style={{
@@ -612,7 +621,7 @@ await fetch(
       {/* Rectángulo de entrada de texto */}
       <textarea
         value={textoEntrada}
-        onChange={e => setTextoEntrada(e.target.value)}
+        onChange={(e) => setTextoEntrada(e.target.value)}
         rows={2}
         placeholder={
           rolActivo === "paciente"
@@ -642,6 +651,14 @@ await fetch(
           <input
             id="input-doc"
             type="file"
+            style={{ display: "none" }}
+            onChange={manejarCambioArchivo}
+          />
+          <input
+            id="input-foto"
+            type="file"
+            accept="image/*"
+            capture="environment"
             style={{ display: "none" }}
             onChange={manejarCambioArchivo}
           />
