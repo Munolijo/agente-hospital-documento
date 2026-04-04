@@ -32,7 +32,7 @@ from agente import (
     traducir_sanitario_a_paciente,
 )
 
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+# pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 # ----------------------------------------------------------------------
 # CONFIGURACIÓN AUTH / JWT
