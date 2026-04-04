@@ -49,8 +49,36 @@ pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 # CONFIGURACIÓN Azure Speech (TTS)
 # ----------------------------------------------------------------------
 
+# ----------------------------------------------------------------------
+# CONFIGURACIÓN Azure Speech (TTS)
+# ----------------------------------------------------------------------
+
 AZURE_SPEECH_KEY = os.environ.get("AZURE_SPEECH_KEY")
 AZURE_SPEECH_REGION = os.environ.get("AZURE_SPEECH_REGION")
+
+AZURE_VOICES = {
+    "inglés": "en-US-AvaMultilingualNeural",
+    "árabe": "ar-EG-SalmaNeural",
+    "chino": "zh-CN-XiaoxiaoNeural",
+    "mandarín": "zh-CN-XiaoxiaoNeural",
+    "francés": "fr-FR-DeniseNeural",
+    "alemán": "de-DE-KatjaNeural",
+    "portugués": "pt-PT-RaquelNeural",
+    "italiano": "it-IT-ElsaNeural",
+    "rumano": "ro-RO-AlinaNeural",
+    "farsi": "fa-IR-DilaraNeural",
+    "persa": "fa-IR-DilaraNeural",
+}
+
+
+def _seleccionar_voz_azure(idioma_paciente: Optional[str]) -> str:
+    if not idioma_paciente:
+        return "en-US-AvaMultilingualNeural"
+    i = idioma_paciente.lower()
+    for clave, voz in AZURE_VOICES.items():
+        if clave in i:
+            return voz
+    return "en-US-AvaMultilingualNeural"
 
 # ----------------------------------------------------------------------
 # CONFIGURACIÓN FASTAPI
@@ -666,6 +694,9 @@ async def traducir_documento_endpoint(
 # ENDPOINT TTS externo (Azure Speech)
 # ----------------------------------------------------------------------
 
+AZURE_SPEECH_KEY = os.environ.get("AZURE_SPEECH_KEY")
+AZURE_SPEECH_REGION = os.environ.get("AZURE_SPEECH_REGION")
+
 AZURE_VOICES = {
     "inglés": "en-US-AvaMultilingualNeural",
     "árabe": "ar-EG-SalmaNeural",
@@ -693,6 +724,7 @@ class TtsRequest(BaseModel):
     texto: str
     idioma_paciente: Optional[str] = None
 
+
 @app.post("/api/tts")
 def generar_tts(
     payload: TtsRequest,
@@ -710,8 +742,12 @@ def generar_tts(
 
     voz = _seleccionar_voz_azure(payload.idioma_paciente)
 
-    token_url = f"https://{AZURE_SPEECH_REGION}.api.cognitive.microsoft.com/sts/v1.0/issueToken"
-    tts_url = f"https://{AZURE_SPEECH_REGION}.tts.speech.microsoft.com/cognitiveservices/v1"
+    token_url = (
+        f"https://{AZURE_SPEECH_REGION}.api.cognitive.microsoft.com/sts/v1.0/issueToken"
+    )
+    tts_url = (
+        f"https://{AZURE_SPEECH_REGION}.tts.speech.microsoft.com/cognitiveservices/v1"
+    )
 
     try:
         token_res = requests.post(
