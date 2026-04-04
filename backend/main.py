@@ -554,10 +554,12 @@ def traducir_documento(
     if origen not in ["paciente", "sanitario"]:
         raise ValueError("El parámetro 'origen' debe ser 'paciente' o 'sanitario'.")
 
+    # 1) PACIENTE -> SANITARIO (documento en idioma del paciente -> español)
     if origen == "paciente":
         prompt = f"""
 Eres un agente de traducción de un hospital.
-TU ÚNICA TAREA es traducir el texto, sin explicaciones adicionales, sin comentarios legales, sin valoraciones, sin resúmenes y sin añadir información nueva.
+TU ÚNICA TAREA es traducir el texto, sin explicaciones adicionales, sin comentarios legales,
+sin valoraciones, sin resúmenes y sin añadir información nueva.
 
 Traduce el siguiente DOCUMENTO entregado por el PACIENTE al ESPAÑOL.
 Devuelve únicamente la traducción, sin ningún texto extra.
@@ -565,24 +567,21 @@ Devuelve únicamente la traducción, sin ningún texto extra.
 DOCUMENTO DEL PACIENTE:
 {texto_documento}
 """
-    else:
-        if not idioma_paciente_fijo:
-            raise ValueError(
-                "Todavía no se ha detectado el idioma del paciente. Inicia la conversación con el paciente primero."
-            )
-        prompt = f"""
-Eres un agente de traducción de un hospital.
-TU ÚNICA TAREA es traducir el texto, sin explicaciones adicionales, sin comentarios legales, sin valoraciones, sin resúmenes y sin añadir información nueva.
+        return llamar_agente_documentos(prompt)
 
-El siguiente texto es un DOCUMENTO del HOSPITAL para el PACIENTE, escrito en ESPAÑOL.
-Traduce TODO el contenido al idioma del paciente: {idioma_paciente_fijo}.
-Devuelve únicamente la traducción, sin ningún texto extra.
+    # 2) SANITARIO -> PACIENTE (texto ya está en español -> idioma del paciente)
+    if not idioma_paciente_fijo:
+        raise ValueError(
+            "Todavía no se ha detectado el idioma del paciente. "
+            "Inicia la conversación con el paciente primero."
+        )
 
-DOCUMENTO DEL HOSPITAL:
-{texto_documento}
-"""
+    texto_traducido = traducir_sanitario_a_paciente(
+        mensaje_sanitario=texto_documento,
+        idioma_paciente=idioma_paciente_fijo,
+    )
 
-    return llamar_agente_documentos(prompt)
+    return texto_traducido
 
 # ----------------------------------------------------------------------
 # FUNCIÓN: extraer_texto_desde_archivo
