@@ -681,7 +681,8 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
           </button>
         </div>
 
-        {/* Foto */}
+ {/* Foto (desactivada en esta versión) */}
+        {/*
         <button
           type="button"
           onClick={manejarFoto}
@@ -693,6 +694,7 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
         >
           Foto
         </button>
+        */}
 
         {/* Enviar texto */}
         <button

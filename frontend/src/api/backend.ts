@@ -1,7 +1,7 @@
 // src/api/backend.ts
 
 // Forzamos directamente la URL de Render
-const BASE_URL = "https://agente-hospital.onrender.com";
+export const BACKEND_URL = "http://localhost:8001";
 
 // ---------------------------------------------------------
 // Gestión de token (simple con localStorage)
