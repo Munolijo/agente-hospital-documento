@@ -1,7 +1,7 @@
 // src/api/backend.ts
 
 // Forzamos directamente la URL de Render
-export const BACKEND_URL = "http://localhost:8001";
+export const BACKEND_URL = "https://agente-hospital-documento.onrender.com";
 
 // ---------------------------------------------------------
 // Gestión de token (simple con localStorage)

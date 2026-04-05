@@ -313,24 +313,25 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
     setArchivo(f);
     if (!f) return;
 
-    setError(null);
-    setSubiendoDoc(true);
-
     try {
+      setSubiendoDoc(true);
+      setError(null);
+
       const formData = new FormData();
       formData.append("archivo", f);
 
-      if (rolActivo === "paciente") {
-        formData.append("origen", "paciente");
-      } else {
-        formData.append("origen", "sanitario");
-        if (!idConversacion) {
-          throw new Error(
-            "Para traducir documentos del sanitario, primero debe existir una conversación."
-          );
-        }
+      // --- NUEVO: lógica de origen para documentos ---
+      let origen: "paciente" | "sanitario" = "paciente";
+
+      if (idConversacion && rolActivo === "sanitario") {
+        origen = "sanitario";
+      }
+
+      formData.append("origen", origen);
+      if (origen === "sanitario" && idConversacion) {
         formData.append("id_conversacion", idConversacion);
       }
+      // --- FIN NUEVO ---
 
       const res = await fetch(`${API_BASE_URL}/api/documentos/traducir`, {
         method: "POST",
@@ -347,7 +348,6 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
 
       const data = await res.json();
 
-      // Si viene idioma_paciente y aún no lo tenemos, lo fijamos
       if (!idiomaPaciente && data.idioma_paciente) {
         setIdiomaPaciente(data.idioma_paciente);
       }
