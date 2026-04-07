@@ -97,6 +97,7 @@ origins = [
     "http://localhost:5173",
     "http://localhost:5174",
     "https://agente-hospital-frontend.onrender.com",
+    "https://agente-hospital-documento-1.onrender.com",
 ]
 
 app.add_middleware(
