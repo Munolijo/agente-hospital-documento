@@ -1,7 +1,23 @@
 // src/api/backend.ts
 
-// Forzamos directamente la URL de Render
-export const BACKEND_URL = "https://agente-hospital-documento.onrender.com";
+// ---------------------------------------------------------
+// Configuración de entorno: LOCAL vs RENDER
+// ---------------------------------------------------------
+
+// ⚠️ Cambia este valor según dónde estés
+// "LOCAL"  -> para desarrollar contra backend en http://localhost:8000
+// "RENDER" -> para usar el backend de Render
+const MODO = "RENDER";
+
+const BACKEND_URL_LOCAL = "http://localhost:8000";
+const BACKEND_URL_RENDER = "https://agente-hospital-documento.onrender.com";
+
+const BACKEND_URL_MAP: Record<string, string> = {
+  LOCAL: BACKEND_URL_LOCAL,
+  RENDER: BACKEND_URL_RENDER,
+};
+
+export const BACKEND_URL = BACKEND_URL_MAP[MODO] || BACKEND_URL_RENDER;
 
 // ---------------------------------------------------------
 // Gestión de token (simple con localStorage)
@@ -20,7 +36,7 @@ export function clearToken() {
 }
 
 // ---------------------------------------------------------
-// Helper genérico para peticiones al backend (opcional)
+// Helper genérico para peticiones al backend
 // ---------------------------------------------------------
 
 type SimpleHeaders = Record<string, string>;
@@ -50,7 +66,10 @@ export async function apiRequest<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const url = `${BACKEND_URL}${path}`;
+  console.log("apiRequest URL:", url);
+
+  const res = await fetch(url, {
     ...options,
     headers,
   });
@@ -80,7 +99,7 @@ export async function login(
   body.append("username", username);
   body.append("password", password);
 
-  const url = `${BASE_URL}/auth/login`;
+  const url = `${BACKEND_URL}/auth/login`;
   console.log("Login URL:", url);
 
   const res = await fetch(url, {

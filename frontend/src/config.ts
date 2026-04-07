@@ -1,2 +1,5 @@
-// frontend/src/config.ts
-export const API_BASE_URL = "https://agente-hospital-documento.onrender.com";
+// src/config.ts
+
+import { BACKEND_URL } from "./api/backend";
+
+export const API_BASE_URL = BACKEND_URL;

@@ -12,6 +12,8 @@ from datetime import datetime, timedelta, timezone
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from dotenv import load_dotenv
+load_dotenv()
 
 from PIL import Image
 import pytesseract
@@ -551,6 +553,12 @@ def llamar_agente_documentos(prompt: str) -> str:
 def traducir_documento(
     texto_documento: str, idioma_paciente_fijo: Optional[str], origen: str
 ) -> str:
+    print(
+        "DEBUG_TRADUCIR_DOC -> origen:", origen,
+        "idioma_paciente_fijo:", repr(idioma_paciente_fijo),
+        flush=True,
+    )
+
     if origen not in ["paciente", "sanitario"]:
         raise ValueError("El parámetro 'origen' debe ser 'paciente' o 'sanitario'.")
 
@@ -577,7 +585,7 @@ DOCUMENTO DEL PACIENTE:
         )
 
     texto_traducido = traducir_sanitario_a_paciente(
-        mensaje_sanitario=texto_documento,
+        texto_sanitario=texto_documento,
         idioma_paciente=idioma_paciente_fijo,
     )
 
@@ -620,14 +628,18 @@ def extraer_texto_desde_archivo(contenido_bytes: bytes, content_type: str) -> st
 # ENDPOINT: /api/documentos/traducir
 # ----------------------------------------------------------------------
 
+from fastapi import File, UploadFile, Form
+
 @app.post("/api/documentos/traducir")
 async def traducir_documento_endpoint(
     archivo: UploadFile = File(...),
-    origen: str = "paciente",  # o "sanitario"
-    id_conversacion: Optional[str] = None,
+    origen: str = Form("paciente"),  # "paciente" o "sanitario"
+    id_conversacion: Optional[str] = Form(None),
 ):
+    print("DEBUG_BACK_DOC_PARAMS -> origen:", origen, "id_conversacion:", id_conversacion, flush=True)
     print("CONTENT_TYPE RECIBIDO:", archivo.content_type, flush=True)
     print("ID_CONVERSACION RECIBIDO:", id_conversacion, flush=True)
+    print("DEBUG_DOC -> origen:", origen, "id_conversacion:", id_conversacion, flush=True)
 
     tipos_permitidos = {
         "text/plain",
@@ -668,6 +680,8 @@ async def traducir_documento_endpoint(
                 detail="Conversación no encontrada para el id_conversacion proporcionado.",
             )
         idioma_paciente_fijo = conversaciones[id_conversacion]
+
+    print("DEBUG_DOC -> idioma_paciente_fijo:", repr(idioma_paciente_fijo), flush=True)
 
     try:
         texto_traducido = traducir_documento(
@@ -821,6 +835,8 @@ async def transcribir_audio(
         print("DEBUG_REQUEST_FORM_ERROR ->", repr(e), flush=True)
         form = None
 
+    ...
+    
     raw_rol = None
     raw_id_conv = None
     if form is not None:
@@ -839,6 +855,8 @@ async def transcribir_audio(
         raise HTTPException(status_code=400, detail="El archivo de audio está vacío.")
 
     import tempfile
+    import os
+    from openai import OpenAI
 
     try:
         with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
@@ -948,6 +966,146 @@ async def transcribir_audio(
             flush=True,
         )
         return respuesta
+
+    # DEBUG: ver todo lo que llega en el form-data
+    try:
+        form = await request.form()
+        print(
+            "DEBUG_REQUEST_FORM ->",
+            {
+                k: ("<UploadFile>" if hasattr(v, "filename") else v)
+                for k, v in form.items()
+            },
+            flush=True,
+        )
+    except Exception as e:
+        print("DEBUG_REQUEST_FORM_ERROR ->", repr(e), flush=True)
+        form = None
+
+    raw_rol = None
+    raw_id_conv = None
+    if form is not None:
+        raw_rol = form.get("rol")
+        raw_id_conv = form.get("id_conversacion")
+
+    rol_efectivo = (raw_rol or "").strip().lower()
+    if raw_id_conv:
+        id_conversacion = str(raw_id_conv)
+
+    if rol_efectivo not in ["paciente", "sanitario"]:
+        raise HTTPException(status_code=400, detail="Rol inválido.")
+
+    audio_bytes = await archivo_audio.read()
+    if not audio_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail="El archivo de audio está vacío.",
+        )
+
+    # --- Usar Azure Speech (con conversión webm -> wav) ---
+    try:
+        texto_transcrito = transcribir_audio_azure(audio_bytes)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error transcribiendo audio con Azure: {e}",
+        )
+
+    texto_transcrito = (texto_transcrito or "").strip()
+    if not texto_transcrito:
+        raise HTTPException(
+            status_code=500,
+            detail="No se ha obtenido texto de la transcripción.",
+        )
+
+    # Turno PACIENTE
+    if rol_efectivo == "paciente":
+        if not id_conversacion:
+            idioma_paciente = detectar_idioma_paciente(texto_transcrito)
+            traduccion_es = traducir_paciente_a_espanol(
+                texto_transcrito, idioma_paciente
+            )
+            id_conv = str(uuid.uuid4())
+            conversaciones[id_conv] = idioma_paciente
+
+            respuesta = RespuestaMensaje(
+                id_conversacion=id_conv,
+                rol="paciente",
+                idioma_paciente=idioma_paciente,
+                texto_original=texto_transcrito,
+                texto_traducido=traduccion_es,
+            )
+        else:
+            if id_conversacion not in conversaciones:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Conversación no encontrada.",
+                )
+            idioma_paciente = conversaciones[id_conversacion]
+            traduccion_es = traducir_paciente_a_espanol(
+                texto_transcrito, idioma_paciente
+            )
+            respuesta = RespuestaMensaje(
+                id_conversacion=id_conversacion,
+                rol="paciente",
+                idioma_paciente=idioma_paciente,
+                texto_original=texto_transcrito,
+                texto_traducido=traduccion_es,
+            )
+
+        print(
+            "DEBUG_RESPUESTA_AUDIO ->",
+            json.dumps(respuesta.model_dump(), ensure_ascii=False),
+            flush=True,
+        )
+        return respuesta
+
+    # Turno SANITARIO
+    if rol_efectivo == "sanitario":
+        if not id_conversacion or id_conversacion not in conversaciones:
+            raise HTTPException(
+                status_code=400,
+                detail="Para rol='sanitario' es obligatorio indicar una conversación válida.",
+            )
+
+        idioma_paciente = conversaciones[id_conversacion]
+
+        print(
+            "DEBUG_ENDPOINT_SANITARIO_AUDIO ->",
+            "id_conversacion:",
+            repr(id_conversacion),
+            "idioma_paciente:",
+            repr(idioma_paciente),
+            "texto_transcrito:",
+            repr(texto_transcrito[:200]),
+            flush=True,
+        )
+
+        traduccion_paciente = traducir_sanitario_a_paciente(
+            texto_transcrito, idioma_paciente
+        )
+
+        print(
+            "DEBUG_ENDPOINT_SANITARIO_AUDIO_RESPUESTA ->",
+            repr(traduccion_paciente[:200]),
+            flush=True,
+        )
+
+        respuesta = RespuestaMensaje(
+            id_conversacion=id_conversacion,
+            rol="sanitario",
+            idioma_paciente=idioma_paciente,
+            texto_original=texto_transcrito,
+            texto_traducido=traduccion_paciente,
+        )
+
+        print(
+            "DEBUG_RESPUESTA_AUDIO ->",
+            json.dumps(respuesta.model_dump(), ensure_ascii=False),
+            flush=True,
+        )
+        return respuesta
+
 
 # ----------------------------------------------------------------------
 # ENDPOINT TEMPORAL: crear primer usuario sin auth (SOLO DESARROLLO)

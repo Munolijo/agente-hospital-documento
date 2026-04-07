@@ -156,7 +156,6 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
     if (vozSeleccionada) {
       utter.voice = vozSeleccionada;
     } else {
-      // No hay voz para ese idioma
       setTtsAviso(
         `No hay voz instalada para el idioma ${lang}. Se muestra el texto, pero no se puede leer en voz alta en este dispositivo.`
       );
@@ -289,7 +288,6 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
           },
         }
       );
-      // aunque falle, reseteamos UI
       setIdConversacion(null);
       setMensajes([]);
       setTextoEntrada("");
@@ -306,6 +304,22 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
     document.getElementById("input-doc")?.click();
   };
 
+const manejarFoto = () => {
+  if (!idConversacion) {
+    setError(
+      "Primero debe iniciar la conversación el paciente antes de enviar una foto."
+    );
+    return;
+  }
+
+  const input = document.getElementById("input-foto") as
+    | HTMLInputElement
+    | null;
+  if (input) {
+    input.click();
+  }
+};
+
   const manejarCambioArchivo = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -320,18 +334,25 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
       const formData = new FormData();
       formData.append("archivo", f);
 
-      // --- NUEVO: lógica de origen para documentos ---
-      let origen: "paciente" | "sanitario" = "paciente";
+// origen según quién sube y si hay conversación
+let origen: "paciente" | "sanitario" = "paciente";
 
-      if (idConversacion && rolActivo === "sanitario") {
-        origen = "sanitario";
-      }
+if (idConversacion && rolActivo === "sanitario") {
+  origen = "sanitario";
+}
 
-      formData.append("origen", origen);
-      if (origen === "sanitario" && idConversacion) {
-        formData.append("id_conversacion", idConversacion);
-      }
-      // --- FIN NUEVO ---
+formData.append("origen", origen);
+if (origen === "sanitario" && idConversacion) {
+  formData.append("id_conversacion", idConversacion);
+}
+
+// ➜ AÑADIR ESTE LOG SOLO PARA DOCUMENTOS/FOTOS
+console.log("DEBUG_FRONT_DOC", {
+  rolActivo,
+  idConversacion,
+  idiomaPaciente,
+  origen_enviado: origen,
+});
 
       const res = await fetch(`${API_BASE_URL}/api/documentos/traducir`, {
         method: "POST",
@@ -372,15 +393,6 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
     } finally {
       setSubiendoDoc(false);
       e.target.value = "";
-    }
-  };
-
-  const manejarFoto = () => {
-    const input = document.getElementById("input-foto") as
-      | HTMLInputElement
-      | null;
-    if (input) {
-      input.click();
     }
   };
 
@@ -646,7 +658,7 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
           alignItems: "stretch",
         }}
       >
-        {/* Adjuntar documento */}
+        {/* Adjuntar documento y foto */}
         <div style={{ flex: 1 }}>
           <input
             id="input-doc"
@@ -681,8 +693,7 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
           </button>
         </div>
 
- {/* Foto (desactivada en esta versión) */}
-        {/*
+        {/* Foto */}
         <button
           type="button"
           onClick={manejarFoto}
@@ -694,7 +705,6 @@ function ConversacionPage(props: { token: string; onLogout: () => void }) {
         >
           Foto
         </button>
-        */}
 
         {/* Enviar texto */}
         <button
