@@ -12,6 +12,7 @@ client = OpenAI(
     base_url="https://api.perplexity.ai",
 )
 
+
 # --- Helper para limpiar citas tipo [1][2] al final de la frase ---
 
 
@@ -27,14 +28,10 @@ def limpiar_citas(texto: str) -> str:
 
 
 # ---------------------------------------------------------------
-# Cliente modelo (para PACIENTE y DOCUMENTOS)
+# Cliente modelo (para PACIENTE y DOCUMENTOS — se mantiene igual)
+
 
 def llamar_agente(prompt: str) -> str:
-    if client is None:
-        raise RuntimeError(
-            "Cliente Perplexity no inicializado "
-            "(revisa PERPLEXITY_API_KEY en la configuración de Render)"
-        )
     """
     Llama al modelo de Perplexity (OpenAI-compatible) y devuelve solo el texto.
     """
@@ -61,6 +58,8 @@ def llamar_agente(prompt: str) -> str:
         ],
     )
     return (respuesta.choices[0].message.content or "").strip()
+
+
 # ---------------------------------------------------------------
 # DETECCIÓN Y PACIENTE -> ESPAÑOL (igual que antes)
 
@@ -159,11 +158,9 @@ def traducir_con_traductor_clasico(texto: str, idioma_paciente: str) -> str:
         raise ValueError(f"No se reconoce el idioma del paciente: {idioma_paciente!r}")
 
     texto_orig = (texto or "").strip()
-    traductor = GoogleTranslator(source="es", target=codigo_destino)  # [web:2238][web:2240]
+    traductor = GoogleTranslator(source="es", target=codigo_destino)
     resultado = (traductor.translate(texto_orig) or "").strip()
 
-    # Heurística simple: si resultado es casi igual al original, lo consideramos "no traducido".
-    # Comparamos en minúsculas y sin tildes/puntuación básica.
     def normalizar(s: str) -> str:
         s = s.lower()
         reemplazos = {
@@ -177,7 +174,6 @@ def traducir_con_traductor_clasico(texto: str, idioma_paciente: str) -> str:
         }
         for k, v in reemplazos.items():
             s = s.replace(k, v)
-        # quitamos signos de puntuación básicos
         for ch in [".", ",", ";", ":", "¿", "?", "¡", "!", '"', "'"]:
             s = s.replace(ch, "")
         return s.strip()
@@ -194,7 +190,6 @@ def traducir_con_traductor_clasico(texto: str, idioma_paciente: str) -> str:
             "codigo_destino:", repr(codigo_destino),
             flush=True,
         )
-        # De momento devolvemos tal cual.
         return resultado
 
     return resultado
@@ -214,7 +209,6 @@ def traducir_sanitario_a_paciente(texto_sanitario: str, idioma_paciente: str) ->
     if not texto_sanitario:
         return ""
 
-    # DEBUG: ver qué entra
     print(
         "DEBUG_SANITARIO_A_PACIENTE ->",
         "idioma_paciente:", repr(idioma_paciente),
@@ -222,7 +216,6 @@ def traducir_sanitario_a_paciente(texto_sanitario: str, idioma_paciente: str) ->
         flush=True,
     )
 
-    # 1) Intento con traductor clásico
     try:
         resultado = traducir_con_traductor_clasico(texto_sanitario, idioma_paciente)
         print(
@@ -239,7 +232,6 @@ def traducir_sanitario_a_paciente(texto_sanitario: str, idioma_paciente: str) ->
             flush=True,
         )
 
-    # 2) Fallback al modelo de Perplexity
     prompt = (
         "Eres un traductor profesional en un hospital.\n"
         "Recibes frases habladas por el PERSONAL SANITARIO en ESPAÑOL\n"
