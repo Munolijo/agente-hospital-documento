@@ -27,10 +27,14 @@ def limpiar_citas(texto: str) -> str:
 
 
 # ---------------------------------------------------------------
-# Cliente modelo (para PACIENTE y DOCUMENTOS — se mantiene igual)
-
+# Cliente modelo (para PACIENTE y DOCUMENTOS)
 
 def llamar_agente(prompt: str) -> str:
+    if client is None:
+        raise RuntimeError(
+            "Cliente Perplexity no inicializado "
+            "(revisa PERPLEXITY_API_KEY en la configuración de Render)"
+        )
     """
     Llama al modelo de Perplexity (OpenAI-compatible) y devuelve solo el texto.
     """
@@ -57,8 +61,6 @@ def llamar_agente(prompt: str) -> str:
         ],
     )
     return (respuesta.choices[0].message.content or "").strip()
-
-
 # ---------------------------------------------------------------
 # DETECCIÓN Y PACIENTE -> ESPAÑOL (igual que antes)
 
