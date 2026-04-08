@@ -631,13 +631,20 @@ def extraer_texto_desde_archivo(contenido_bytes: bytes, content_type: str) -> st
 
 from fastapi import File, UploadFile, Form
 
+
 @app.post("/api/documentos/traducir")
 async def traducir_documento_endpoint(
     archivo: UploadFile = File(...),
     origen: str = Form("paciente"),  # "paciente" o "sanitario"
     id_conversacion: Optional[str] = Form(None),
 ):
-    print("DEBUG_BACK_DOC_PARAMS -> origen:", origen, "id_conversacion:", id_conversacion, flush=True)
+    print(
+        "DEBUG_BACK_DOC_PARAMS -> origen:",
+        origen,
+        "id_conversacion:",
+        id_conversacion,
+        flush=True,
+    )
     print("CONTENT_TYPE RECIBIDO:", archivo.content_type, flush=True)
     print("ID_CONVERSACION RECIBIDO:", id_conversacion, flush=True)
     print("DEBUG_DOC -> origen:", origen, "id_conversacion:", id_conversacion, flush=True)
@@ -689,6 +696,7 @@ async def traducir_documento_endpoint(
             texto_documento, idioma_paciente_fijo, origen
         )
     except Exception as e:
+        print("DEBUG_DOC_ERROR ->", repr(e), flush=True)
         raise HTTPException(
             status_code=500,
             detail=f"Error traduciendo documento: {e}",
@@ -1142,3 +1150,14 @@ def create_initial_user_dev(
         role=user_db.role,
         activo=user_db.activo,
     )
+
+@app.get("/debug/perplexity")
+def debug_perplexity():
+    from agente import llamar_agente
+
+    try:
+        respuesta = llamar_agente("Traduce al español: Hello, how are you?")
+        return {"ok": True, "respuesta": respuesta}
+    except Exception as e:
+        print("DEBUG_PPLX_TEST_ERROR ->", repr(e), flush=True)
+        return {"ok": False, "error": repr(e)}    
