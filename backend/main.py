@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status, Request
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Optional
@@ -349,6 +349,47 @@ def set_user_active(
         activo=user_db.activo,
     )
 
+
+@app.post("/init-user", response_model=UserRead)
+def create_initial_user(
+    user_in: UserCreate,
+    session: Session = Depends(get_session),
+):
+    # Si ya hay algún usuario, no permitimos crear más por aquí
+    existing_any = session.exec(select(UserDB)).first()
+    if existing_any:
+        raise HTTPException(
+            status_code=400,
+            detail="Ya existe al menos un usuario. /init-user solo es para inicializar.",
+        )
+
+    existing = get_user_by_username(session, user_in.username)
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail="Ya existe un usuario con ese username.",
+        )
+
+    hashed = get_password_hash(user_in.password)
+    user_db = UserDB(
+        username=user_in.username,
+        hospital_id=user_in.hospital_id,
+        role=user_in.role,
+        activo=True,
+        hashed_password=hashed,
+    )
+    session.add(user_db)
+    session.commit()
+    session.refresh(user_db)
+
+    return UserRead(
+        id=user_db.id,
+        username=user_db.username,
+        hospital_id=user_db.hospital_id,
+        role=user_db.role,
+        activo=user_db.activo,
+    )
+
 # ----------------------------------------------------------------------
 # RESOLVER PRINCIPIO ACTIVO DESDE NOMBRE COMERCIAL (CIMA AEMPS)
 # ----------------------------------------------------------------------
@@ -529,8 +570,13 @@ def finalizar_conversacion(
 # CLIENTE PERPLEXITY (OpenAI-compatible) PARA DOCUMENTOS
 # ----------------------------------------------------------------------
 
+API_KEY_PERPLEXITY = os.environ.get("PERPLEXITY_API_KEY")
+
+if not API_KEY_PERPLEXITY:
+    print("ADVERTENCIA: PERPLEXITY_API_KEY no está definida en main.py; modo local sin Perplexity.")
+
 perplexity_client = OpenAI(
-    api_key=os.environ["PERPLEXITY_API_KEY"],
+    api_key=API_KEY_PERPLEXITY,
     base_url="https://api.perplexity.ai",
 )
 
@@ -551,6 +597,8 @@ def llamar_agente_documentos(prompt: str) -> str:
 # FUNCIÓN DE NEGOCIO: traducir_documento
 # ----------------------------------------------------------------------
 
+from agente import traducir_documento_generico  # ya lo tienes más abajo
+
 def traducir_documento(
     texto_documento: str, idioma_paciente_fijo: Optional[str], origen: str
 ) -> str:
@@ -563,34 +611,22 @@ def traducir_documento(
     if origen not in ["paciente", "sanitario"]:
         raise ValueError("El parámetro 'origen' debe ser 'paciente' o 'sanitario'.")
 
-    # 1) PACIENTE -> SANITARIO (documento en idioma del paciente -> español)
+    # Determinar idioma destino igual que en el endpoint
     if origen == "paciente":
-        prompt = f"""
-Eres un agente de traducción de un hospital.
-TU ÚNICA TAREA es traducir el texto, sin explicaciones adicionales, sin comentarios legales,
-sin valoraciones, sin resúmenes y sin añadir información nueva.
+        idioma_destino = "español"
+    else:
+        if not idioma_paciente_fijo:
+            raise ValueError(
+                "Todavía no se ha detectado el idioma del paciente. "
+                "Inicia la conversación con el paciente primero."
+            )
+        idioma_destino = idioma_paciente_fijo
 
-Traduce el siguiente DOCUMENTO entregado por el PACIENTE al ESPAÑOL.
-Devuelve únicamente la traducción, sin ningún texto extra.
-
-DOCUMENTO DEL PACIENTE:
-{texto_documento}
-"""
-        return llamar_agente_documentos(prompt)
-
-    # 2) SANITARIO -> PACIENTE (texto ya está en español -> idioma del paciente)
-    if not idioma_paciente_fijo:
-        raise ValueError(
-            "Todavía no se ha detectado el idioma del paciente. "
-            "Inicia la conversación con el paciente primero."
-        )
-
-    texto_traducido = traducir_sanitario_a_paciente(
-        texto_sanitario=texto_documento,
-        idioma_paciente=idioma_paciente_fijo,
+    return traducir_documento_generico(
+        texto_documento=texto_documento,
+        idioma_destino=idioma_destino,
+        origen=origen,
     )
-
-    return texto_traducido
 
 # ----------------------------------------------------------------------
 # FUNCIÓN: extraer_texto_desde_archivo
@@ -629,7 +665,9 @@ def extraer_texto_desde_archivo(contenido_bytes: bytes, content_type: str) -> st
 # ENDPOINT: /api/documentos/traducir
 # ----------------------------------------------------------------------
 
-from fastapi import File, UploadFile, Form
+
+from agente import traducir_documento_generico  # arriba del archivo
+
 
 
 @app.post("/api/documentos/traducir")
@@ -646,8 +684,6 @@ async def traducir_documento_endpoint(
         flush=True,
     )
     print("CONTENT_TYPE RECIBIDO:", archivo.content_type, flush=True)
-    print("ID_CONVERSACION RECIBIDO:", id_conversacion, flush=True)
-    print("DEBUG_DOC -> origen:", origen, "id_conversacion:", id_conversacion, flush=True)
 
     tipos_permitidos = {
         "text/plain",
@@ -691,9 +727,22 @@ async def traducir_documento_endpoint(
 
     print("DEBUG_DOC -> idioma_paciente_fijo:", repr(idioma_paciente_fijo), flush=True)
 
+    # Aquí usamos la función de agente.py que ya sabe manejar origen PACIENTE/SANITARIO
+    if origen == "paciente":
+        idioma_destino = "español"
+    else:
+        if not idioma_paciente_fijo:
+            raise HTTPException(
+                status_code=400,
+                detail="No se conoce el idioma del paciente para origen='sanitario'.",
+            )
+        idioma_destino = idioma_paciente_fijo
+
     try:
-        texto_traducido = traducir_documento(
-            texto_documento, idioma_paciente_fijo, origen
+        texto_traducido = traducir_documento_generico(
+            texto_documento=texto_documento,
+            idioma_destino=idioma_destino,
+            origen=origen,
         )
     except Exception as e:
         print("DEBUG_DOC_ERROR ->", repr(e), flush=True)
@@ -711,6 +760,7 @@ async def traducir_documento_endpoint(
         "texto_origen": texto_documento,
         "texto_traducido": texto_traducido,
     }
+
 
 # ----------------------------------------------------------------------
 # ENDPOINT TTS externo (Azure Speech)

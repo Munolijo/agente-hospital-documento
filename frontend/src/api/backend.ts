@@ -1,15 +1,10 @@
 // src/api/backend.ts
 
-// ---------------------------------------------------------
-// Configuración de entorno: LOCAL vs RENDER
-// ---------------------------------------------------------
+// "LOCAL"  -> backend en tu máquina
+// "RENDER" -> backend en Render (no lo usaremos de momento)
+const ENTORNO_BACKEND: "LOCAL" | "RENDER" = "LOCAL";
 
-// ⚠️ Cambia este valor según dónde estés
-// "LOCAL"  -> para desarrollar contra backend en http://localhost:8000
-// "RENDER" -> para usar el backend de Render
-const MODO = "RENDER";
-
-const BACKEND_URL_LOCAL = "http://localhost:8000";
+const BACKEND_URL_LOCAL = "http://127.0.0.1:8000";  // o 8000, según uses en backend
 const BACKEND_URL_RENDER = "https://agente-hospital-documento.onrender.com";
 
 const BACKEND_URL_MAP: Record<string, string> = {
@@ -17,7 +12,7 @@ const BACKEND_URL_MAP: Record<string, string> = {
   RENDER: BACKEND_URL_RENDER,
 };
 
-export const BACKEND_URL = BACKEND_URL_MAP[MODO] || BACKEND_URL_RENDER;
+export const BACKEND_URL = BACKEND_URL_MAP[ENTORNO_BACKEND] || BACKEND_URL_RENDER;
 
 // ---------------------------------------------------------
 // Gestión de token (simple con localStorage)
