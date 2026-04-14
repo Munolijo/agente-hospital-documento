@@ -1,11 +1,11 @@
 // src/api/backend.ts
 
 // "LOCAL"  -> backend en tu máquina
-// "RENDER" -> backend en Render (no lo usaremos de momento)
-const ENTORNO_BACKEND: "LOCAL" | "RENDER" = "LOCAL";
+// "RENDER" -> backend en Render
+const ENTORNO_BACKEND: "LOCAL" | "RENDER" = "RENDER";
 
-const BACKEND_URL_LOCAL = "http://127.0.0.1:8000";  // o 8000, según uses en backend
-const BACKEND_URL_RENDER = "https://agente-hospital-documento.onrender.com";
+const BACKEND_URL_LOCAL = "http://127.0.0.1:8000";
+const BACKEND_URL_RENDER = "https://agente-hospital-prod.onrender.com";
 
 const BACKEND_URL_MAP: Record<string, string> = {
   LOCAL: BACKEND_URL_LOCAL,
@@ -13,22 +13,6 @@ const BACKEND_URL_MAP: Record<string, string> = {
 };
 
 export const BACKEND_URL = BACKEND_URL_MAP[ENTORNO_BACKEND] || BACKEND_URL_RENDER;
-
-// ---------------------------------------------------------
-// Gestión de token (simple con localStorage)
-// ---------------------------------------------------------
-
-export function setToken(token: string) {
-  localStorage.setItem("token", token);
-}
-
-export function getToken(): string | null {
-  return localStorage.getItem("token");
-}
-
-export function clearToken() {
-  localStorage.removeItem("token");
-}
 
 // ---------------------------------------------------------
 // Helper genérico para peticiones al backend
