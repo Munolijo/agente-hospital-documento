@@ -15,6 +15,22 @@ const BACKEND_URL_MAP: Record<string, string> = {
 export const BACKEND_URL = BACKEND_URL_MAP[ENTORNO_BACKEND] || BACKEND_URL_RENDER;
 
 // ---------------------------------------------------------
+// Gestión de token (simple con localStorage)
+// ---------------------------------------------------------
+
+export function setToken(token: string) {
+  localStorage.setItem("token", token);
+}
+
+export function getToken(): string | null {
+  return localStorage.getItem("token");
+}
+
+export function clearToken() {
+  localStorage.removeItem("token");
+}
+
+// ---------------------------------------------------------
 // Helper genérico para peticiones al backend
 // ---------------------------------------------------------
 
