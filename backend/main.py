@@ -15,8 +15,10 @@ from passlib.context import CryptContext
 from dotenv import load_dotenv
 load_dotenv()
 
+
 from PIL import Image
 import pytesseract
+
 
 from sqlmodel import Session, select
 import httpx  # <- NUEVO
@@ -24,8 +26,10 @@ import json   # <- AÑADIDO PARA DEBUG_RESPUESTA_AUDIO
 import base64
 import requests
 
+
 # IMPORTS LOCALES como módulo
 from db import User as UserDB, create_db_and_tables, get_session
+
 
 from agente import (
     detectar_idioma_paciente,
@@ -34,29 +38,37 @@ from agente import (
     traducir_sanitario_a_paciente,
 )
 
+
 # pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
 
 # ----------------------------------------------------------------------
 # CONFIGURACIÓN AUTH / JWT
 # ----------------------------------------------------------------------
 
+
 SECRET_KEY = "CAMBIA_ESTA_CLAVE_POR_UNA_LARGA_Y_SECRETA"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 480
 
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 
-# ----------------------------------------------------------------------
-# CONFIGURACIÓN Azure Speech (TTS)
-# ----------------------------------------------------------------------
 
 # ----------------------------------------------------------------------
 # CONFIGURACIÓN Azure Speech (TTS)
 # ----------------------------------------------------------------------
+
+
+# ----------------------------------------------------------------------
+# CONFIGURACIÓN Azure Speech (TTS)
+# ----------------------------------------------------------------------
+
 
 AZURE_SPEECH_KEY = os.environ.get("AZURE_SPEECH_KEY")
 AZURE_SPEECH_REGION = os.environ.get("AZURE_SPEECH_REGION")
+
 
 AZURE_VOICES = {
     "inglés": "en-US-AvaMultilingualNeural",
@@ -73,6 +85,7 @@ AZURE_VOICES = {
 }
 
 
+
 def _seleccionar_voz_azure(idioma_paciente: Optional[str]) -> str:
     if not idioma_paciente:
         return "en-US-AvaMultilingualNeural"
@@ -82,9 +95,11 @@ def _seleccionar_voz_azure(idioma_paciente: Optional[str]) -> str:
             return voz
     return "en-US-AvaMultilingualNeural"
 
+
 # ----------------------------------------------------------------------
 # CONFIGURACIÓN FASTAPI
 # ----------------------------------------------------------------------
+
 
 app = FastAPI(
     title="Agente de Traducción Hospitalaria",
@@ -92,13 +107,14 @@ app = FastAPI(
     version="0.1.0",
 )
 
+
 # Orígenes permitidos (frontend local y frontend en Render)
 origins = [
     "http://localhost:5173",
     "http://localhost:5174",
-    "https://agente-hospital-frontend.onrender.com",
-    "https://agente-hospital-documento-1.onrender.com",
+    "https://agente-hospital-prod-frontend.onrender.com",
 ]
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -108,23 +124,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.on_event("startup")
 def on_startup():
     # Crear tablas si no existen (incluye User)
     create_db_and_tables()
 
+
 # ----------------------------------------------------------------------
 # MEMORIA DE CONVERSACIONES
 # ----------------------------------------------------------------------
 
+
 conversaciones: Dict[str, str] = {}  # id_conversacion -> idioma_paciente
+
 
 # ----------------------------------------------------------------------
 # MODELOS Pydantic (esquemas de API)
 # ----------------------------------------------------------------------
 
+
 class MensajeTexto(BaseModel):
     texto_original: str
+
 
 class RespuestaMensaje(BaseModel):
     id_conversacion: str
@@ -133,18 +155,22 @@ class RespuestaMensaje(BaseModel):
     texto_original: str
     texto_traducido: str
 
+
 class FinalizarRespuesta(BaseModel):
     id_conversacion: str
     estado: str
+
 
 class Token(BaseModel):
     access_token: str
     token_type: str
 
+
 class TokenData(BaseModel):
     username: str | None = None
     hospital_id: str | None = None
     role: str | None = None
+
 
 class User(BaseModel):
     id: int
@@ -153,11 +179,13 @@ class User(BaseModel):
     role: str
     activo: bool
 
+
 class UserCreate(BaseModel):
     username: str
     password: str
     hospital_id: str
     role: str
+
 
 class UserRead(BaseModel):
     id: int
@@ -166,19 +194,24 @@ class UserRead(BaseModel):
     role: str
     activo: bool
 
+
 # ----------------------------------------------------------------------
 # UTILIDADES AUTH / USERS (BD)
 # ----------------------------------------------------------------------
 
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
+
 
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
+
 def get_user_by_username(session: Session, username: str) -> Optional[UserDB]:
     statement = select(UserDB).where(UserDB.username == username)
     return session.exec(statement).first()
+
 
 def authenticate_user(
     session: Session, username: str, password: str
@@ -192,6 +225,7 @@ def authenticate_user(
         return None
     return user
 
+
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
     if expires_delta:
@@ -201,6 +235,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -226,6 +261,7 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
 
+
     user = get_user_by_username(session, username=token_data.username)  # type: ignore[arg-type]
     if user is None:
         raise credentials_exception
@@ -233,9 +269,11 @@ async def get_current_user(
         raise HTTPException(status_code=400, detail="Usuario inactivo.")
     return user
 
+
 # ----------------------------------------------------------------------
 # ENDPOINTS AUTH
 # ----------------------------------------------------------------------
+
 
 @app.post("/auth/login", response_model=Token)
 async def login_for_access_token(
@@ -245,6 +283,7 @@ async def login_for_access_token(
     # LOG PARA DEPURAR LO QUE LLEGA DEL FRONT
     print("LOGIN DEBUG -> username recibido:", repr(form_data.username), flush=True)
     print("LOGIN DEBUG -> password recibido:", repr(form_data.password), flush=True)
+
 
     user = authenticate_user(session, form_data.username, form_data.password)
     if not user:
@@ -264,6 +303,7 @@ async def login_for_access_token(
     )
     return Token(access_token=access_token, token_type="bearer")
 
+
 @app.get("/auth/me", response_model=UserRead)
 async def read_users_me(current_user: UserDB = Depends(get_current_user)):
     return UserRead(
@@ -274,6 +314,7 @@ async def read_users_me(current_user: UserDB = Depends(get_current_user)):
         activo=current_user.activo,
     )
 
+# … (resto del archivo igual que lo tenías)
 # ----------------------------------------------------------------------
 # ENDPOINTS GESTIÓN DE USUARIOS (altas/bajas)
 # ----------------------------------------------------------------------
